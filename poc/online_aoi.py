@@ -110,6 +110,7 @@ SAMPLING_TIME = 0.001
 MIN_DWELL_SEC = 0.100 # 100ms
 COOLDOWN_SEC = 0.300 # 300ms
 
+# main code
 def inside(px, py, box): # determines if the given coordinates are inside the box
     x1,y1,x2,y2 = box
     return x1 <= px <= x2 and y1 <= py <= y2
