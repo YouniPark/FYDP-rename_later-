@@ -3,7 +3,7 @@ import logging
 import cv2
 
 from pylsl import StreamInfo, StreamOutlet, local_clock
-from g3pylib import connect_to_glasses
+from g3pylib import connect_to_glasses # only works with python 3.10
 
 logging.basicConfig(level=logging.INFO)
 G3_HOSTNAME = "" # serial number of ip address 
