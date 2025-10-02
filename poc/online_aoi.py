@@ -39,7 +39,7 @@ def iou(a, b):
     ua = (ax2-ax1)*(ay2-ay1) + (bx2-bx1)*(by2-by1) - inter + 1e-6 #added 1e-6 to avoid division by zero (https://www.kaggle.com/code/iezepov/fast-iou-scoring-metric-in-pytorch-and-numpy)
     return inter / ua
 
-def assign_ids(new_boxes, old_map, thresh=0.3, next_id_start=1): 
+def assign_ids(new_boxes, old_map, thresh=CONF_THRESH, next_id_start=1): 
     # adapted from: https://github.com/GBJim/iou_tracker/blob/master/iou_tracker.py
     used = set()
     assigned = {}
@@ -60,7 +60,7 @@ def assign_ids(new_boxes, old_map, thresh=0.3, next_id_start=1):
             next_id += 1
     return assigned
 
-def detect_faces(frame, net, conf=0.6): 
+def detect_faces(frame, net, conf=CONF_THRESH): 
     # taken from: https://pyimagesearch.com/2018/02/26/face-detection-with-opencv-and-deep-learning/
     H, W = frame.shape[:2]
     blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300,300)),
