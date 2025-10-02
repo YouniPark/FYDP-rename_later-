@@ -13,9 +13,9 @@ async def stream_rtsp():
     g3 = await connect_to_glasses.with_hostname(G3_HOSTNAME, using_zeroconf=True)
 
     # LSL
-    # video 
-    info_video = StreamInfo("Glasses3_Video", "Video", 1, 0, "string", "g3_video")
-    outlet_video = StreamOutlet(info_video)
+    # # video 
+    # info_video = StreamInfo("Glasses3_Video", "Video", 1, 0, "string", "g3_video")
+    # outlet_video = StreamOutlet(info_video)
 
     # video timestamp 
     info_ts = StreamInfo("Glasses3_VideoTS", "VideoTimestamps", 2, 0, "float32", "g3_ts")
@@ -42,8 +42,8 @@ async def stream_rtsp():
                     h, w = frame.shape[:2] # convert to pixel location
                     x, y = int(gaze2d[0] * w), int(gaze2d[1] * h)
 
-                # push video info to lsl
-                outlet_video.push_sample([file], ts)
+                # # push video info to lsl
+                # outlet_video.push_sample([file], ts)
 
                 # push timestamp info to lsl
                 outlet_ts.push_sample([ts, frame_timestamp], ts)
