@@ -13,17 +13,23 @@ async def stream_rtsp():
     g3 = await connect_to_glasses.with_hostname(G3_HOSTNAME, using_zeroconf=True)
 
     # LSL
-    # # video 
-    # info_video = StreamInfo("Glasses3_Video", "Video", 1, 0, "string", "g3_video")
-    # outlet_video = StreamOutlet(info_video)
-
     # video timestamp 
     info_ts = StreamInfo("Glasses3_VideoTS", "VideoTimestamps", 2, 0, "float32", "g3_ts")
     outlet_ts = StreamOutlet(info_ts)
 
+    channels_ts = info_ts.desc().append_child("channels")
+    channels_ts.append_child("channel").append_child_value("label", "local_ts")
+    channels_ts.append_child("channel").append_child_value("label", "frame_ts")
+
     # eye tracker  
-    info_gaze = StreamInfo("Glasses3_Gaze", "Gaze", 2, 0, "float32", "g3_gaze")
+    info_gaze = StreamInfo("Glasses3_Gaze", "Gaze", 4, 0, "float32", "g3_gaze")
     outlet_gaze = StreamOutlet(info_gaze)
+
+    channels_gaze = info_gaze.desc().append_child("channels")
+    channels_gaze.append_child("channel").append_child_value("label", "local_ts")
+    channels_gaze.append_child("channel").append_child_value("label", "gaze_ts")
+    channels_gaze.append_child("channel").append_child_value("label", "x-coordinate")
+    channels_gaze.append_child("channel").append_child_value("label", "y-coordinate")
 
     try:
         # get RTSP stream
@@ -33,8 +39,6 @@ async def stream_rtsp():
                 ts = local_clock()
                 frame, frame_timestamp = await decoded_stream.get()
                 image = frame.to_ndarray(format="bgr24")
-                _, cap = cv2.imencode(".jpg", image)
-                file = cap.tobytes().decode("latin1")  
 
                 gaze, gaze_timestamp = await decoded_gaze.get()
                 if "gaze2d" in gaze:
@@ -42,14 +46,11 @@ async def stream_rtsp():
                     h, w = frame.shape[:2] # convert to pixel location
                     x, y = int(gaze2d[0] * w), int(gaze2d[1] * h)
 
-                # # push video info to lsl
-                # outlet_video.push_sample([file], ts)
-
                 # push timestamp info to lsl
                 outlet_ts.push_sample([ts, frame_timestamp], ts)
 
                 # push gaze info to lsl
-                outlet_gaze.push_sample([x,y], ts)
+                outlet_gaze.push_sample([ts, gaze_timestamp, x, y], ts)
 
                 # show video
                 cv2.imshow("Video", image)
