@@ -11,13 +11,11 @@ print("ManualMarkers stream ready, started marker lsl. Press 'm' to send a marke
 
 def on_press(key):
     try:
-        if key.char == 's':
-            marker_outlet.push_sample(["StartedMarker"])
         if key.char == 'm':  # send marker
             ts = local_clock()
-            marker_outlet.push_sample(["ManualMarker"], timestamp=ts)
+            marker_outlet.push_sample(["ManualMarker_EyeGaze"], timestamp=ts)
             print(f"Sent ManualMarker at LSL time {ts:.5f}")
-        elif key.char == 'q':  # quit program
+        elif key.char == 'e':  # quit program
             print("Exiting...")
             return False
     except AttributeError:
