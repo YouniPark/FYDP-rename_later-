@@ -75,7 +75,7 @@ class G3toLSL:
         ch_ts.append_child("channel").append_child_value("label", "frame_ts")
         self.outlet_ts = StreamOutlet(info_ts)
 
-        info_gaze = StreamInfo(self.cfg.G3_GAZE_NAME, "Gaze", 4, 0, "float32", "g3_gaze")
+        info_gaze = StreamInfo(self.cfg.G3_GAZE_NAME, "Gaze", 6, 0, "float32", "g3_gaze")
         ch_gz = info_gaze.desc().append_child("channels")
         ch_gz.append_child("channel").append_child_value("label", "local_ts")
         ch_gz.append_child("channel").append_child_value("label", "gaze_ts")
@@ -124,55 +124,64 @@ class G3toLSL:
             return
 
         logging.info("Starting RTSP stream...")
-        streams = await self.g3.stream_rtsp(scene_camera=True, gaze=True)
-
-        async with streams.scene_camera.decode() as dec_stream, streams.gaze.decode() as dec_gaze:
-            try:
-                while True:
-                    if self._quit_flag:
-                        break
-                    ts = local_clock()
-                    frame, frame_timestamp = await dec_stream.get()
-                    image = frame.to_ndarray(format="bgr24")
-                    H, W = image.shape[:2]
-
-                    gaze, gaze_timestamp = await dec_gaze.get()
-                    if "gaze2d" in gaze:
-                        gx_norm, gy_norm = float(gaze["gaze2d"][0]), float(gaze["gaze2d"][1])
-                    else:
-                        gx_norm, gy_norm = 0.5, 0.5
-
-                    self.outlet_ts.push_sample([ts, float(frame_timestamp)], ts)
-                    px = int(np.clip(gx_norm, 0, 1) * (W - 1))
-                    py = int(np.clip(gy_norm, 0, 1) * (H - 1))
-                    self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py)], ts)
-
-                    event_fired, fired_bbox = self.engine.step(gx_norm, gy_norm, image, ts)
-
-                    if show_video:
-                        for box in self.engine.tracker.face_map.values():
-                            x1, y1, x2, y2 = box
-                            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv2.circle(image, (px, py), 4, (255, 0, 0), -1)
-                        if event_fired and fired_bbox:
-                            x1, y1, x2, y2 = fired_bbox
-                            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                        cv2.imshow("G3 Scene + AOI", image)
-                        if cv2.waitKey(1) & 0xFF == ord("q"):
-                            self._quit_flag = True
-                            self._stop_event.set()
+        # stream_rtsp returns an async context manager (not awaitable); use 'async with'
+        async with self.g3.stream_rtsp(scene_camera=True, gaze=True) as streams:
+            async with streams.scene_camera.decode() as dec_stream, streams.gaze.decode() as dec_gaze:
+                try:
+                    while True:
+                        if self._quit_flag:
                             break
+                        ts = local_clock()
+                        frame, frame_timestamp = await dec_stream.get()
+                        image = frame.to_ndarray(format="bgr24")
+                        H, W = image.shape[:2]
 
-                    if (ts - self._last_print) >= self.cfg.PRINT_PERIOD:
-                        self._last_print = ts
-                        print(json.dumps({
-                            "lsl_time": round(ts, 6),
-                            "gaze_norm": [round(gx_norm, 4), round(gy_norm, 4)],
-                            "bbox": [int(v) for v in fired_bbox] if fired_bbox else None,
-                            "event": bool(event_fired)
-                        }))
-            finally:
-                self.close()
+                        gaze, gaze_timestamp = await dec_gaze.get()
+                        if "gaze2d" in gaze:
+                            gx_norm, gy_norm = float(gaze["gaze2d"][0]), float(gaze["gaze2d"][1])
+                        else:
+                            continue
+
+
+                        if frame_timestamp is not None:
+                            self.outlet_ts.push_sample([ts, float(frame_timestamp)], ts)
+                        
+                        px = int(np.clip(gx_norm, 0, 1) * (W - 1))
+                        py = int(np.clip(gy_norm, 0, 1) * (H - 1))
+                        
+                        if gaze_timestamp is not None:
+                            self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
+
+                        event_fired, fired_bbox = self.engine.step(gx_norm, gy_norm, image, ts)
+
+                        if show_video:
+                            for box in self.engine.tracker.face_map.values():
+                                x1, y1, x2, y2 = box
+                                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv2.circle(image, (px, py), 10, (255, 0, 0), 2)
+                            if event_fired and fired_bbox:
+                                x1, y1, x2, y2 = fired_bbox
+                                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                            cv2.imshow("G3 Scene + AOI", image)
+                            if cv2.waitKey(1) & 0xFF == ord("q"):
+                                self._quit_flag = True
+                                self._stop_event.set()
+                                break
+
+                        if (ts - self._last_print) >= self.cfg.PRINT_PERIOD:
+                            # print('gaze:', gaze)
+                            # print(f'gx_norm: {gx_norm}, gy_norm: {gy_norm}')
+                            print(f'px: {px}, py: {py}' )
+
+                            self._last_print = ts
+                            print(json.dumps({
+                                "lsl_time": round(ts, 6),
+                                "gaze_norm": [round(gx_norm, 4), round(gy_norm, 4)],
+                                "bbox": [int(v) for v in fired_bbox] if fired_bbox else None,
+                                "event": bool(event_fired)
+                            }))
+                finally:
+                    self.close()
 
     def close(self):
         if self.g3:

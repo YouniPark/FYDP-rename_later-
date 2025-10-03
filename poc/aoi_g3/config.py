@@ -11,7 +11,7 @@ class AppConfig:
     PROTOTXT_URL: str = "https://raw.githubusercontent.com/opencv/opencv/master/samples/dnn/face_detector/deploy.prototxt"
     WEIGHTS_URL: str = "https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20170830/res10_300x300_ssd_iter_140000.caffemodel"
 
-    PRINT_PERIOD: float = 0.100
+    PRINT_PERIOD: float = 0.200  # period between printing gaze info to console (in seconds)
 
     MARKER_NAME: str = "Markers"
     MARKER_SOURCE_ID: str = "face_aoi_markers"
