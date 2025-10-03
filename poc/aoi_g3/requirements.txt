@@ -1,0 +1,6 @@
+# Project dependencies
+opencv-python
+numpy
+pylsl
+pynput
+# g3pylib - Requires python 3.10, has to be installed by cloning the library: https://github.com/tobii/glasses3-pylib
