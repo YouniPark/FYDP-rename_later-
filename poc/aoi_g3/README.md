@@ -1,4 +1,4 @@
-FOLDER CONTENTS
+## FOLDER CONTENTS
 
 aoi_g3/
 ├─ __init__.py
@@ -12,13 +12,20 @@ aoi_g3/
 ├─ g3_streamer.py
 └─ app.py
 
-STEPS TO RUN FOLDER
+## STEPS TO RUN FOLDER
 
-1. put aoi_g3 folder on PYTHONPATH (or pip install -e if a package)
+1. Put `aoi_g3` folder on PYTHONPATH (or `pip install -e` if a package)
 
-2. install the following: 
-pip install opencv-python numpy pylsl g3pylib
+2. Install the following: 
+- `opencv-python`
+- `numpy`
+- `pylsl`
+- `g3pylib`
+    
+    This can be done by running `pip install -r requirements.txt` from within the aoi_g3 directory.
 
-3. edit HOSTNAME in aoi_g3/app.py (serial or IP)
+    To install g3pylib, follow the instructions here: https://github.com/tobii/glasses3-pylib.
 
-4. run in terminal: python -m aoi_g3.app
+3. Edit HOSTNAME in aoi_g3/app.py (serial or IP).
+
+4. Run in terminal: `python -m aoi_g3.app`.
