@@ -23,3 +23,7 @@ class AppConfig:
 
     G3_TS_NAME: str = "Glasses3_VideoTS"
     G3_GAZE_NAME: str = "Glasses3_Gaze"
+    
+    # Video display configuration
+    DISPLAY_FPS_LIMIT: float = 24.0
+    DISPLAY_WINDOW_NAME: str = "G3 Scene + AOI"

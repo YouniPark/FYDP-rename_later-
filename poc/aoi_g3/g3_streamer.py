@@ -1,4 +1,4 @@
-import json, logging, asyncio
+import json, logging, asyncio, time
 from typing import Optional
 import numpy as np
 import cv2
@@ -26,6 +26,10 @@ class G3toLSL:
         self.outlet_ts: Optional[StreamOutlet] = None
         self.outlet_gaze: Optional[StreamOutlet] = None
         self._last_print = 0.0
+        # Video display control
+        self._last_display_time = 0.0
+        self._display_fps_limit = cfg.DISPLAY_FPS_LIMIT
+        self.window_name = cfg.DISPLAY_WINDOW_NAME
         # Keyboard support
         self._kb_listener = None
         self._quit_flag = False
@@ -118,10 +122,31 @@ class G3toLSL:
         self._kb_listener.start()
         print(f"Keyboard ready: '{self.cfg.KEY_MARK}' to send {self.cfg.MANUAL_MARKER_EVENT}, '{self.cfg.KEY_QUIT}' to quit.")
 
+    def set_display_fps_limit(self, fps: float):
+        """Method to externally set video display FPS."""
+        self._display_fps_limit = max(1.0, min(fps, 120.0))  # Clamp between 1-120 FPS
+        logging.info(f"Display FPS limit set to {self._display_fps_limit}")
+
+    def configure_display_window(self, width: int = 800, height: int = 600, x: int = None, y: int = None):
+        """Method to externally set display window size and position."""
+        try:
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            cv2.resizeWindow(self.window_name, width, height)
+            if x is not None and y is not None:
+                cv2.moveWindow(self.window_name, x, y)
+            logging.info(f"Display window configured: {width}x{height}")
+        except Exception as e:
+            logging.warning(f"Could not configure display window: {e}")
+
     async def stream(self, show_video: bool = True):
         if not self.g3:
             logging.error("Not connected to Tobii Glasses 3.")
             return
+
+        # Setup OpenCV window
+        if show_video:
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            cv2.resizeWindow(self.window_name, 800, 600)  # Set initial size
 
         logging.info("Starting RTSP stream...")
         # stream_rtsp returns an async context manager (not awaitable); use 'async with'
@@ -154,26 +179,53 @@ class G3toLSL:
 
                         event_fired, fired_bbox = self.engine.step(gx_norm, gy_norm, image, ts)
 
+                        # Update AOI and G3 Video Stream display
                         if show_video:
-                            for box in self.engine.tracker.face_map.values():
-                                x1, y1, x2, y2 = box
-                                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv2.circle(image, (px, py), 10, (255, 0, 0), 2)
-                            if event_fired and fired_bbox:
-                                x1, y1, x2, y2 = fired_bbox
-                                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                            cv2.imshow("G3 Scene + AOI", image)
-                            if cv2.waitKey(1) & 0xFF == ord("q"):
+                            # Limit display updates to frame rate
+                            display_interval = 1.0 / self._display_fps_limit
+                            if (ts - self._last_display_time) >= display_interval:
+                                # Draw visualizations on the image
+                                for box in self.engine.tracker.face_map.values():
+                                    x1, y1, x2, y2 = box
+                                    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                cv2.circle(image, (px, py), 10, (255, 0, 0), 2)
+                                if event_fired and fired_bbox:
+                                    x1, y1, x2, y2 = fired_bbox
+                                    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                                
+                                # Update display
+                                cv2.imshow(self.window_name, image)
+                                self._last_display_time = ts  # Track last display time
+                            
+                            # Check for key presses and window events
+                            key = cv2.waitKey(1) & 0xFF
+                            if key == ord("q"):
+                                self._quit_flag = True
+                                self._stop_event.set()
+                                break
+                            
+                            # Check if window was closed manually (clicking 'X')
+                            try:
+                                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                                    self._quit_flag = True
+                                    self._stop_event.set()
+                                    break
+                            except cv2.error:
+                                # Window was destroyed
                                 self._quit_flag = True
                                 self._stop_event.set()
                                 break
 
-                        if (ts - self._last_print) >= self.cfg.PRINT_PERIOD:
+                        # Print if event is fired or print period elapsed
+                        should_print = event_fired or (ts - self._last_print) >= self.cfg.PRINT_PERIOD
+                        
+                        if should_print:
                             # print('gaze:', gaze)
                             # print(f'gx_norm: {gx_norm}, gy_norm: {gy_norm}')
                             print(f'px: {px}, py: {py}' )
 
                             self._last_print = ts
+                            
                             print(json.dumps({
                                 "lsl_time": round(ts, 6),
                                 "gaze_norm": [round(gx_norm, 4), round(gy_norm, 4)],
