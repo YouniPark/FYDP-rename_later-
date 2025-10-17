@@ -4,7 +4,8 @@ import numpy as np
 import cv2
 from pylsl import StreamInfo, StreamOutlet, local_clock
 from g3pylib import connect_to_glasses
-from threading import Event
+from threading import Event, Thread, Lock
+from queue import Queue
 
 try:
     from pynput import keyboard
@@ -34,6 +35,10 @@ class G3toLSL:
         self._kb_listener = None
         self._quit_flag = False
         self._stop_event = Event()
+        # Display thread and queue
+        self._display_queue = Queue(maxsize=2)  # Keep only latest frames
+        self._display_thread = None
+        self._display_lock = Lock()
 
     async def connect(self):
         # Attempt to connect to the Glasses 3 service - retry on failure.
@@ -138,15 +143,53 @@ class G3toLSL:
         except Exception as e:
             logging.warning(f"Could not configure display window: {e}")
 
+    def _display_thread_worker(self):
+        """Worker thread that handles OpenCV display operations."""
+        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+        cv2.resizeWindow(self.window_name, 1920, 1080)
+        
+        while not self._quit_flag:
+            try:
+                # Get the latest frame from the queue (non-blocking)
+                if not self._display_queue.empty():
+                    image = self._display_queue.get_nowait()
+                    cv2.imshow(self.window_name, image)
+                
+                # Check for key presses and window events
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    self._quit_flag = True
+                    self._stop_event.set()
+                    break
+                
+                # Check if window was closed manually
+                try:
+                    if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                        self._quit_flag = True
+                        self._stop_event.set()
+                        break
+                except cv2.error:
+                    self._quit_flag = True
+                    self._stop_event.set()
+                    break
+                    
+            except Exception as e:
+                if not self._quit_flag:
+                    logging.error(f"Display thread error: {e}")
+                break
+        
+        cv2.destroyWindow(self.window_name)
+
     async def stream(self, show_video: bool = True):
         if not self.g3:
             logging.error("Not connected to Tobii Glasses 3.")
             return
 
-        # Setup OpenCV window
-        if show_video:
-            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
-            cv2.resizeWindow(self.window_name, 800, 600)  # Set initial size
+        # Start display thread if video is enabled
+        if show_video and self._display_thread is None:
+            self._display_thread = Thread(target=self._display_thread_worker, daemon=True)
+            self._display_thread.start()
+            logging.info("Display thread started")
 
         logging.info("Starting RTSP stream...")
         # stream_rtsp returns an async context manager (not awaitable); use 'async with'
@@ -167,7 +210,6 @@ class G3toLSL:
                         else:
                             continue
 
-
                         if frame_timestamp is not None:
                             self.outlet_ts.push_sample([ts, float(frame_timestamp)], ts)
                         
@@ -184,51 +226,35 @@ class G3toLSL:
                             # Limit display updates to frame rate
                             display_interval = 1.0 / self._display_fps_limit
                             if (ts - self._last_display_time) >= display_interval:
-                                # Draw visualizations on the image
+                                # Draw visualizations on a copy of the image
+                                display_image = image.copy()
                                 for box in self.engine.tracker.face_map.values():
                                     x1, y1, x2, y2 = box
-                                    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                                cv2.circle(image, (px, py), 10, (255, 0, 0), 2)
+                                    cv2.rectangle(display_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                cv2.circle(display_image, (px, py), 10, (255, 0, 0), 2)
                                 if event_fired and fired_bbox:
                                     x1, y1, x2, y2 = fired_bbox
-                                    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                                    cv2.rectangle(display_image, (x1, y1), (x2, y2), (0, 0, 255), 3)
                                 
-                                # Update display
-                                cv2.imshow(self.window_name, image)
-                                self._last_display_time = ts  # Track last display time
-                            
-                            # Check for key presses and window events
-                            key = cv2.waitKey(1) & 0xFF
-                            if key == ord("q"):
-                                self._quit_flag = True
-                                self._stop_event.set()
-                                break
-                            
-                            # Check if window was closed manually (clicking 'X')
-                            try:
-                                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
-                                    self._quit_flag = True
-                                    self._stop_event.set()
-                                    break
-                            except cv2.error:
-                                # Window was destroyed
-                                self._quit_flag = True
-                                self._stop_event.set()
-                                break
+                                # Push to display queue (drop old frames if full)
+                                if self._display_queue.full():
+                                    try:
+                                        self._display_queue.get_nowait()
+                                    except:
+                                        pass
+                                self._display_queue.put_nowait(display_image)
+                                self._last_display_time = ts
 
                         # Print if event is fired or print period elapsed
                         should_print = event_fired or (ts - self._last_print) >= self.cfg.PRINT_PERIOD
                         
                         if should_print:
-                            # print('gaze:', gaze)
-                            # print(f'gx_norm: {gx_norm}, gy_norm: {gy_norm}')
-                            print(f'px: {px}, py: {py}' )
-
                             self._last_print = ts
                             
                             print(json.dumps({
                                 "lsl_time": round(ts, 6),
                                 "gaze_norm": [round(gx_norm, 4), round(gy_norm, 4)],
+                                "gaze_pixel": [px, py],
                                 "bbox": [int(v) for v in fired_bbox] if fired_bbox else None,
                                 "event": bool(event_fired)
                             }))
@@ -246,4 +272,8 @@ class G3toLSL:
                 self._kb_listener = None
         except Exception:
             pass
+        # Wait for display thread to finish
+        if self._display_thread is not None:
+            self._display_thread.join(timeout=2.0)
+            self._display_thread = None
         cv2.destroyAllWindows()
