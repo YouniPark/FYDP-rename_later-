@@ -88,8 +88,10 @@ class G3toLSL:
         ch_gz = info_gaze.desc().append_child("channels")
         ch_gz.append_child("channel").append_child_value("label", "local_ts")
         ch_gz.append_child("channel").append_child_value("label", "gaze_ts")
-        ch_gz.append_child("channel").append_child_value("label", "x-coordinate")
-        ch_gz.append_child("channel").append_child_value("label", "y-coordinate")
+        ch_gz.append_child("channel").append_child_value("label", "pixel_x")
+        ch_gz.append_child("channel").append_child_value("label", "pixel_y")
+        ch_gz.append_child("channel").append_child_value("label", "norm_x")
+        ch_gz.append_child("channel").append_child_value("label", "norm_y")
         self.outlet_gaze = StreamOutlet(info_gaze)
 
         logging.info("LSL outlets created (G3 timestamps + gaze).")
