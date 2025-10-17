@@ -202,11 +202,31 @@ class G3toLSL:
                         if self._quit_flag:
                             break
                         ts = local_clock()
+                        
+                        # Get frame first
                         frame, frame_timestamp = await dec_stream.get()
                         image = frame.to_ndarray(format="bgr24")
                         H, W = image.shape[:2]
 
+                        # Get initial gaze
                         gaze, gaze_timestamp = await dec_gaze.get()
+                        
+                        # Skip if no valid timestamps
+                        while gaze_timestamp is None or frame_timestamp is None:
+                            if frame_timestamp is None:
+                                frame, frame_timestamp = await dec_stream.get()
+                                image = frame.to_ndarray(format="bgr24")
+                                H, W = image.shape[:2]
+                            if gaze_timestamp is None:
+                                gaze, gaze_timestamp = await dec_gaze.get()
+                        
+                        # Advance gaze stream until timestamp >= frame timestamp
+                        # This syncs gaze to be at or slightly after the frame
+                        while gaze_timestamp < frame_timestamp:
+                            gaze, gaze_timestamp = await dec_gaze.get()
+                            while gaze_timestamp is None:
+                                gaze, gaze_timestamp = await dec_gaze.get()
+                        
                         if "gaze2d" in gaze:
                             gx_norm, gy_norm = float(gaze["gaze2d"][0]), float(gaze["gaze2d"][1])
                         else:
