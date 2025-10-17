@@ -88,8 +88,10 @@ class G3toLSL:
         ch_gz = info_gaze.desc().append_child("channels")
         ch_gz.append_child("channel").append_child_value("label", "local_ts")
         ch_gz.append_child("channel").append_child_value("label", "gaze_ts")
-        ch_gz.append_child("channel").append_child_value("label", "x-coordinate")
-        ch_gz.append_child("channel").append_child_value("label", "y-coordinate")
+        ch_gz.append_child("channel").append_child_value("label", "pixel_x")
+        ch_gz.append_child("channel").append_child_value("label", "pixel_y")
+        ch_gz.append_child("channel").append_child_value("label", "norm_x")
+        ch_gz.append_child("channel").append_child_value("label", "norm_y")
         self.outlet_gaze = StreamOutlet(info_gaze)
 
         logging.info("LSL outlets created (G3 timestamps + gaze).")
@@ -192,10 +194,52 @@ class G3toLSL:
             logging.info("Display thread started")
 
         logging.info("Starting RTSP stream...")
+        
+        # Separate task to continuously collect gaze data
+        gaze_buffer = []
+        gaze_lock = asyncio.Lock()
+        video_resolution = [None, None]  # Will be set after first frame [W, H]
+        
+        async def gaze_collector(dec_gaze):
+            """Background task to continuously collect ALL gaze samples"""
+            try:
+                while not self._quit_flag:
+                    gaze, gaze_timestamp = await dec_gaze.get()
+                    if "gaze2d" in gaze:
+                        gx_norm, gy_norm = float(gaze["gaze2d"][0]), float(gaze["gaze2d"][1])
+                        
+                        async with gaze_lock:
+                            gaze_buffer.append((gx_norm, gy_norm, gaze_timestamp, local_clock()))
+                            # Keep buffer size reasonable
+                            if len(gaze_buffer) > 100:
+                                gaze_buffer.pop(0)
+                        
+                        # Push to LSL immediately for full gaze stream
+                        if gaze_timestamp is not None:
+                            ts = local_clock()
+                            
+                            # Calculate pixel coordinates if we know video resolution
+                            W, H = video_resolution[0], video_resolution[1]
+                            if W is not None and H is not None:
+                                px = int(np.clip(gx_norm, 0, 1) * (W - 1))
+                                py = int(np.clip(gy_norm, 0, 1) * (H - 1))
+                            else:
+                                # Before first frame, use placeholder
+                                px, py = -1, -1
+                            
+                            self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
+            except Exception as e:
+                if not self._quit_flag:
+                    logging.error(f"Gaze collector error: {e}")
+        
         # stream_rtsp returns an async context manager (not awaitable); use 'async with'
         async with self.g3.stream_rtsp(scene_camera=True, gaze=True) as streams:
             async with streams.scene_camera.decode() as dec_stream, streams.gaze.decode() as dec_gaze:
+                # Start background gaze collector
+                gaze_task = asyncio.create_task(gaze_collector(dec_gaze))
+                
                 try:
+                    first_frame = True
                     while True:
                         if self._quit_flag:
                             break
@@ -203,21 +247,30 @@ class G3toLSL:
                         frame, frame_timestamp = await dec_stream.get()
                         image = frame.to_ndarray(format="bgr24")
                         H, W = image.shape[:2]
+                        
+                        # Set video resolution for gaze collector on first frame
+                        if first_frame:
+                            video_resolution[0] = W
+                            video_resolution[1] = H
+                            logging.info(f"Video resolution: {W}x{H}")
+                            first_frame = False
 
-                        gaze, gaze_timestamp = await dec_gaze.get()
-                        if "gaze2d" in gaze:
-                            gx_norm, gy_norm = float(gaze["gaze2d"][0]), float(gaze["gaze2d"][1])
-                        else:
-                            continue
-
+                        # Get most recent gaze from buffer (synchronized by timestamp)
+                        async with gaze_lock:
+                            if not gaze_buffer:
+                                continue
+                            
+                            # Find gaze sample closest to frame timestamp
+                            closest = min(gaze_buffer, key=lambda x: abs(x[2] - frame_timestamp))
+                            gx_norm, gy_norm, gaze_timestamp, _ = closest
+                        
+                        # No need to check "gaze2d" - already validated in collector
+                        
                         if frame_timestamp is not None:
                             self.outlet_ts.push_sample([ts, float(frame_timestamp)], ts)
                         
                         px = int(np.clip(gx_norm, 0, 1) * (W - 1))
                         py = int(np.clip(gy_norm, 0, 1) * (H - 1))
-                        
-                        if gaze_timestamp is not None:
-                            self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
 
                         event_fired, fired_bbox = self.engine.step(gx_norm, gy_norm, image, ts)
 
@@ -251,14 +304,24 @@ class G3toLSL:
                         if should_print:
                             self._last_print = ts
                             
+                            async with gaze_lock:
+                                buffer_size = len(gaze_buffer)
+                            
                             print(json.dumps({
                                 "lsl_time": round(ts, 6),
                                 "gaze_norm": [round(gx_norm, 4), round(gy_norm, 4)],
                                 "gaze_pixel": [px, py],
+                                "gaze_buffer_size": buffer_size,
                                 "bbox": [int(v) for v in fired_bbox] if fired_bbox else None,
                                 "event": bool(event_fired)
                             }))
                 finally:
+                    # Cancel gaze collector task
+                    gaze_task.cancel()
+                    try:
+                        await gaze_task
+                    except asyncio.CancelledError:
+                        pass
                     self.close()
 
     def close(self):
