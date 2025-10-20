@@ -27,3 +27,8 @@ class AppConfig:
     # Video display configuration
     DISPLAY_FPS_LIMIT: float = 24.0
     DISPLAY_WINDOW_NAME: str = "G3 Scene + AOI"
+
+    # OpenCV DNN acceleration configuration 
+    DNN_BACKEND: str = "cuda" # preferred acceleration: "cuda", "opencl", or "cpu"
+    DNN_FP16: bool = False  # can try FP16 for faster performance (tested and it was slower)
+    USE_GPU: bool = True
