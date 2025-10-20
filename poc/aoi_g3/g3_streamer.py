@@ -203,7 +203,22 @@ class G3toLSL:
                             break
                         ts = local_clock()
                         frame, frame_timestamp = await dec_stream.get()
-                        image = frame.to_ndarray(format="bgr24")
+                        
+                        # Check if frame is valid before processing
+                        if frame is None:
+                            logging.warning("Received None frame, skipping...")
+                            continue
+
+                        try:
+                            image = frame.to_ndarray(format="bgr24")
+                        except Exception as e:
+                            logging.warning(f"Failed to decode frame: {e}")
+                            continue
+
+                        if image is None or image.size == 0:
+                            logging.warning("Frame decoded but image is empty, skipping...")
+                            continue
+                        
                         H, W = image.shape[:2]
 
                         gaze, gaze_timestamp = await dec_gaze.get()
