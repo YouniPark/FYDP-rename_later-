@@ -248,6 +248,18 @@ class G3toLSL:
                         px = int(np.clip(gx_norm, 0, 1) * (W - 1))
                         py = int(np.clip(gy_norm, 0, 1) * (H - 1))
                         
+                        # timestamp comparisons
+                        gaze_time = float(gaze["timestamp"])
+                        # print(gaze)
+                        if gaze_time == ts:
+                            print("Gaze time matches local time ", gaze_time)
+                        if gaze_time == gaze_timestamp:
+                            print("Gaze time matches gaze timestamp ", gaze_time)
+                        if gaze_time == frame_timestamp:
+                            print("Gaze time matches frame timestamp ", gaze_time)
+                        if frame_timestamp == gaze_timestamp:
+                            print("Frame timestamp matches gaze timestamp ", frame_timestamp)
+
                         if gaze_timestamp is not None:
                             self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
                         
