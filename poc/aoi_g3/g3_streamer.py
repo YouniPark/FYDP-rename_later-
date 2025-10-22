@@ -26,6 +26,8 @@ class G3toLSL:
         self.g3 = None
         self.outlet_ts: Optional[StreamOutlet] = None
         self.outlet_gaze: Optional[StreamOutlet] = None
+        self.outlet_faces: Optional[StreamOutlet] = None
+        self.outlet_pupil: Optional[StreamOutlet] = None
         self._last_print = 0.0
         # Video display control
         self._last_display_time = 0.0
@@ -94,7 +96,20 @@ class G3toLSL:
         ch_gz.append_child("channel").append_child_value("label", "norm_y")
         self.outlet_gaze = StreamOutlet(info_gaze)
 
-        logging.info("LSL outlets created (G3 timestamps + gaze).")
+        info_faces = StreamInfo(self.cfg.G3_FACEBOX_NAME, "FaceBoxes", 7, 0, "float32", "g3_faces")
+        ch_fb = info_faces.desc().append_child("channels")
+        for label in ["local_ts", "frame_ts", "face_id", "x1", "y1", "x2", "y2"]: # frame ts is the timestamp of the tobii frame 
+            ch_fb.append_child("channel").append_child_value("label", label)
+        self.outlet_faces = StreamOutlet(info_faces)
+
+        # pupil diameter in millimeters
+        info_pupil = StreamInfo(self.cfg.G3_PUPIL_NAME, "Pupil", 4, 0, "float32", "g3_pupil")
+        ch_pd = info_pupil.desc().append_child("channels")
+        for label in ["local_ts", "gaze_ts", "pupil_left_mm", "pupil_right_mm"]: # gaze_ts here is thetobii device timestamp
+            ch_pd.append_child("channel").append_child_value("label", label)
+        self.outlet_pupil = StreamOutlet(info_pupil)
+
+        logging.info("LSL outlets created (G3 timestamps + gaze + face boxes + pupil).")
 
     def _start_keyboard(self):
         if not self.cfg.ENABLE_KB_MARKERS: # Keyboard markers disabled
@@ -228,6 +243,19 @@ class G3toLSL:
                                 px, py = -1, -1
                             
                             self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
+
+                            # Also push pupil diameters if available
+                            if self.outlet_pupil is not None:
+                                try:
+                                    left_pd = float(gaze.get("eyeleft", {}).get("pupildiameter", float("nan")))
+                                except Exception:
+                                    left_pd = float("nan")
+                                try:
+                                    right_pd = float(gaze.get("eyeright", {}).get("pupildiameter", float("nan")))
+                                except Exception:
+                                    right_pd = float("nan")
+                                gz_ts = float(gaze_timestamp) if gaze_timestamp is not None else float("nan")
+                                self.outlet_pupil.push_sample([float(ts), gz_ts, left_pd, right_pd], ts)
             except Exception as e:
                 if not self._quit_flag:
                     logging.error(f"Gaze collector error: {e}")
@@ -287,7 +315,20 @@ class G3toLSL:
                         px = int(np.clip(gx_norm, 0, 1) * (W - 1))
                         py = int(np.clip(gy_norm, 0, 1) * (H - 1))
 
+
                         event_fired, fired_bbox = self.engine.step(gx_norm, gy_norm, image, ts)
+                        
+                        # push face bounding boxes to lsl (one per frame)
+                        if self.outlet_faces is not None:
+                            ft = float(frame_timestamp) if frame_timestamp is not None else float("nan") #ft is tobii's scene camera timestamp, is nan if empty
+                            # DATA STRUCTURE FOR FaceTracker
+                            # engine.tracker.face_map: Dict[face_id, (x1, y1, x2, y2)] 
+                            for fid, box in self.engine.tracker.face_map.items():
+                                x1, y1, x2, y2 = box
+                                self.outlet_faces.push_sample(
+                                    [float(ts), ft, float(fid), float(x1), float(y1), float(x2), float(y2)],
+                                    ts
+                                )
 
                         # Update AOI and G3 Video Stream display
                         if show_video:

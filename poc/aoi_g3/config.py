@@ -23,6 +23,8 @@ class AppConfig:
 
     G3_TS_NAME: str = "Glasses3_VideoTS"
     G3_GAZE_NAME: str = "Glasses3_Gaze"
+    G3_FACEBOX_NAME: str = "Glasses3_FaceBoxes"
+    G3_PUPIL_NAME: str = "Glasses3_Pupil" # pupil diameter
     
     # Video display configuration
     DISPLAY_FPS_LIMIT: float = 24.0
