@@ -233,20 +233,22 @@ class G3toLSL:
                         if image is None or image.size == 0:
                             logging.warning("Frame decoded but image is empty, skipping...")
                             continue
-                        
-                        H, W = image.shape[:2]
+
+                        # test 3D gaze 
+                        fx, fy = 914.72637939453125, 914.5299072265625 # Focal lengths
+                        cx, cy = 952.97509765625, 517.0499267578125 # Principal point
 
                         gaze, gaze_timestamp = await dec_gaze.get()
-                        if "gaze2d" in gaze:
-                            gx_norm, gy_norm = float(gaze["gaze2d"][0]), float(gaze["gaze2d"][1])
+                        if "gaze3d" in gaze:
+                            gx_norm, gy_norm, gz_norm = float(gaze["gaze3d"][0]), float(gaze["gaze3d"][1]), float(gaze["gaze3d"][2])
                         else:
                             continue
+                        
+                        px = int(fx * (gx_norm / gz_norm) + cx)
+                        py = int(fy * (gy_norm / gz_norm) + cy)
 
                         if frame_timestamp is not None:
                             self.outlet_ts.push_sample([ts, float(frame_timestamp)], ts)
-                        
-                        px = int(np.clip(gx_norm, 0, 1) * (W - 1))
-                        py = int(np.clip(gy_norm, 0, 1) * (H - 1))
                         
                         if gaze_timestamp is not None:
                             self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
