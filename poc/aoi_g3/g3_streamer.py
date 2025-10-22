@@ -211,7 +211,7 @@ class G3toLSL:
         logging.info("Starting RTSP stream...")
         # stream_rtsp returns an async context manager (not awaitable); use 'async with'
         async with self.g3.stream_rtsp(scene_camera=True, gaze=True) as streams:
-            async with streams.scene_camera.decode() as dec_stream, streams.gaze.decode() as dec_gaze:
+            async with streams.scene_camera.decode(undistort=True) as dec_stream, streams.gaze.decode() as dec_gaze: # test undistorted screen
                 try:
                     while True:
                         if self._quit_flag:
