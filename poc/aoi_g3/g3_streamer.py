@@ -210,6 +210,8 @@ class G3toLSL:
 
         logging.info("Starting RTSP stream...")
         # stream_rtsp returns an async context manager (not awaitable); use 'async with'
+        alpha = 0.3  # smoothing factor
+        smoothed_uv = None
         async with self.g3.stream_rtsp(scene_camera=True, gaze=True) as streams:
             async with streams.scene_camera.decode() as dec_stream, streams.gaze.decode() as dec_gaze:
                 try:
@@ -248,6 +250,16 @@ class G3toLSL:
                         px = int(np.clip(gx_norm, 0, 1) * (W - 1))
                         py = int(np.clip(gy_norm, 0, 1) * (H - 1))
                         
+                        # text smoothing
+                        if px is not None and py is not None:
+                            uv_array = np.array([px, py], dtype=np.float32)
+                            if smoothed_uv is None:
+                                smoothed_uv = uv_array
+                            else:
+                                smoothed_uv = alpha * uv_array + (1 - alpha) * smoothed_uv
+                        
+                            px, py = int(smoothed_uv[0]), int(smoothed_uv[1])
+
                         if gaze_timestamp is not None:
                             self.outlet_gaze.push_sample([ts, float(gaze_timestamp), float(px), float(py), float(gx_norm), float(gy_norm)], ts)
                         
