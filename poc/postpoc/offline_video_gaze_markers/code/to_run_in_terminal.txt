@@ -1,0 +1,15 @@
+WHAT TO RUN IN TERMINAL OF MACOS:
+
+python manual_marker_aoi.py \
+  --video scenevideo.mp4 \
+  --gaze gazedata.gz \
+  --out events.csv \
+  --frames-csv frames_log.csv \
+  --video-out labeled_scenevideo.mp4 \
+  --lsl-offset 0.0 \
+  --gaze-offset 0.0 \
+  --min-dwell 0.05 \
+  --cooldown 0.00 \
+  --gaze-radius-px 60 \
+  --event-prune-window 7.0 \
+  --display
