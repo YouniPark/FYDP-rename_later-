@@ -23,11 +23,14 @@ CODE FUNCTION
 """
 
 import os, sys, json, csv, time, argparse, urllib.request, gzip, io
+from threading import Thread, Event
+from queue import Queue
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict
 
 import numpy as np
 import cv2
+from tqdm import tqdm
 
 
 # config
@@ -218,18 +221,96 @@ def main():
     ap.add_argument("--conf",      type=float, default=0.60, help="face detector confidence threshold (can lower?)")
     ap.add_argument("--event-prune-window", type=float, default=0.0, help="fix gaze jittering.") # maybe future replace this by testing different cooldowns
 
-    ap.add_argument("--gaze-offset", type=float, default=0.0, help="add to gaze timestamps before matching with video time")
+    ap.add_argument("--gaze-offset", type=float, default=0.0, help="add to gaze timestamps before matching with video time (seconds)")
     ap.add_argument("--lsl-offset",  type=float, default=0.0, help="unused now; keeping for compatibility")
     ap.add_argument("--flip-y", action="store_true", help="interpret gaze y as bottom-left origin (flip to opencv formatting)")
 
     ap.add_argument("--display", action="store_true", help="show preview window with boxes + gaze dot")
+    ap.add_argument("--display-every", type=int, default=1, help="render only every Nth frame in the preview window (>=1)")
     ap.add_argument("--gaze-radius-px", type=int, default=None, help="gaze circle radius in pixels (0 or none = no radius)")
+    ap.add_argument("--gaze-offset-x-px", type=float, default=0.0, help="add this many pixels to gaze X (positive = right)")
+    ap.add_argument("--gaze-offset-y-px", type=float, default=0.0, help="add this many pixels to gaze Y (positive = down)")
     ap.add_argument("--hud-face-lines", type=int, default=6, help="max number of face box lines to list in display")
+
+    ap.add_argument("--display-threaded", action="store_true", default=(os.name == 'nt'), help="Use a separate thread for display so dragging/minimizing the window won't block processing (recommended on Windows)")
+    ap.add_argument("--no-display-threaded", dest="display_threaded", action="store_false", help="Disable threaded display and render inline")
+    
+    ap.add_argument("--smooth-window", type=int, default=0, help="number of previous gaze points to use for smoothing (0 = no smoothing)")
+    ap.add_argument("--smooth-alpha", type=float, default=0.5, help="decay factor for weighted average (0.0-1.0, higher = more weight on recent points)")
+
+
+    ap.add_argument("--no-progress", action="store_true", help="disable progress bar")
+    ap.add_argument("--progress-update-interval", type=int, default=50, help="update progress bar every N frames (default: 50)")
+
+    # DNN backend/target
+    ap.add_argument("--use-gpu", action="store_true", default=True, help="enable GPU acceleration when available (CUDA/OpenCL)")
+    ap.add_argument("--dnn-backend", choices=["cpu", "cuda", "opencl"], default="cuda", help="preferred DNN backend when using GPU")
+    ap.add_argument("--dnn-fp16", action="store_true", default=False, help="use FP16 compute target (CUDA/OpenCL) if supported")
 
     args = ap.parse_args()
 
     ensure_face_model()
     net = cv2.dnn.readNetFromCaffe(PROTOTXT, WEIGHTS)
+
+    # configure DNN backend/target
+    def _configure_dnn_backend(net_obj, backend_choice: str, use_gpu: bool, fp16: bool) -> str:
+        mode = "cpu"
+        try:
+            backend_choice = (backend_choice or "cpu").lower()
+            if use_gpu and backend_choice == "cuda":
+                # Quick capability probes
+                cuda_mod = getattr(cv2, "cuda", None)
+                cuda_count = 0
+                try:
+                    if cuda_mod is not None:
+                        cuda_count = int(cuda_mod.getCudaEnabledDeviceCount())
+                except Exception:
+                    cuda_count = 0
+                if cuda_count <= 0:
+                    raise RuntimeError("OpenCV CUDA module not available or no CUDA device detected")
+                net_obj.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+                try:
+                    target = cv2.dnn.DNN_TARGET_CUDA_FP16 if fp16 else cv2.dnn.DNN_TARGET_CUDA
+                except Exception:
+                    target = cv2.dnn.DNN_TARGET_CUDA
+                net_obj.setPreferableTarget(target)
+                mode = f"cuda({'fp16' if fp16 else 'fp32'})"
+            elif use_gpu and backend_choice == "opencl":
+                try:
+                    cv2.ocl.setUseOpenCL(True)
+                except Exception:
+                    pass
+                have_ocl = False
+                try:
+                    have_ocl = bool(cv2.ocl.haveOpenCL())
+                except Exception:
+                    have_ocl = False
+                if not have_ocl:
+                    raise RuntimeError("OpenCL not available")
+                net_obj.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                try:
+                    target = cv2.dnn.DNN_TARGET_OPENCL_FP16 if fp16 else cv2.dnn.DNN_TARGET_OPENCL
+                except Exception:
+                    target = cv2.dnn.DNN_TARGET_OPENCL
+                net_obj.setPreferableTarget(target)
+                mode = f"opencl({'fp16' if fp16 else 'fp32'})"
+            else:
+                net_obj.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                net_obj.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+                mode = "cpu"
+        except Exception as e:
+            # Hard fallback to CPU
+            try:
+                net_obj.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                net_obj.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+                mode = "cpu"
+            except Exception:
+                pass
+            print(f"[DNN] Falling back to CPU: {e}")
+        return mode
+
+    selected_mode = _configure_dnn_backend(net, args.dnn_backend, args.use_gpu, args.dnn_fp16)
+    print(f"OpenCV DNN configured: {selected_mode}")
 
     # open video
     cap = cv2.VideoCapture(args.video)
@@ -241,6 +322,7 @@ def main():
         fps = 30.0
     W  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     H  = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     frame_time = 1.0 / fps
 
     # set gaze radius
@@ -281,11 +363,72 @@ def main():
 
     face_map: Dict[int, Tuple[int,int,int,int]] = {}
     entered: Dict[int, bool] = {}
-    entry_t: Dict[int, float] = {}
+    entry_t: Dict[int, float] = {}  # video_time when gaze entered
+    entry_lsl_t: Dict[int, float] = {}  # lsl_time when gaze entered
+    entry_frame_idx: Dict[int, int] = {}  # frame_idx when gaze entered
+    entry_gaze: Dict[int, Tuple[Optional[float], Optional[float], Optional[int], Optional[int]]] = {}  # (gx, gy, px, py) when entered
     last_hit_t: Dict[int, float] = {}
     last_kept_event_time_by_face: Dict[int, float] = {}
+    # Smoothing history buffer
+    smooth_window = max(0, int(args.smooth_window))
+    smooth_alpha = float(np.clip(args.smooth_alpha, 0.0, 1.0))
+    gaze_history: List[Tuple[float, float]] = []  # stores (px, py) tuples
+
 
     frame_idx = 0
+
+    # Display setup (window + optional thread)
+    window_name = "Offline AOI"
+    display_every = max(1, int(args.display_every))
+    display_queue: Queue = Queue(maxsize=2)
+    display_stop = Event()
+    display_thread: Optional[Thread] = None
+
+    def _configure_window():
+        try:
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            # Use video dimensions for initial window size
+            cv2.resizeWindow(window_name, W, H)
+        except Exception:
+            pass
+
+    def _display_worker():
+        _configure_window()
+        while not display_stop.is_set():
+            try:
+                if not display_queue.empty():
+                    img = display_queue.get_nowait()
+                    cv2.imshow(window_name, img)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == 27:
+                    display_stop.set()
+                    break
+                try:
+                    if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+                        display_stop.set()
+                        break
+                except cv2.error:
+                    display_stop.set(); break
+            except Exception:
+                # Don't crash the processing loop on display errors
+                continue
+        try:
+            cv2.destroyWindow(window_name)
+        except Exception:
+            pass
+
+    if args.display:
+        if args.display_threaded:
+            display_thread = Thread(target=_display_worker, daemon=True)
+            display_thread.start()
+        else:
+            _configure_window()
+
+    # Setup progress bar
+    pbar = None
+    if not args.no_progress:
+        pbar = tqdm(total=total_frames if total_frames > 0 else None, 
+                   desc="Processing", unit="frame", dynamic_ncols=True)
 
     try:
         while True:
@@ -304,6 +447,7 @@ def main():
             if gxy is None:
                 gx = gy = None
                 px = py = None
+                px_raw = py_raw = None
             else:
                 gx, gy = gxy
                 if args.flip_y:
@@ -312,8 +456,65 @@ def main():
                 gy = float(np.clip(gy, 0.0, 1.0))
                 px = int(round(gx * (W - 1)))
                 py = int(round(gy * (H - 1)))
+                
+                # apply pixel offsets
+                if args.gaze_offset_x_px:
+                    try:
+                        px += int(round(args.gaze_offset_x_px))
+                    except Exception:
+                        px += int(args.gaze_offset_x_px)
+                if args.gaze_offset_y_px:
+                    try:
+                        py += int(round(args.gaze_offset_y_px))
+                    except Exception:
+                        py += int(args.gaze_offset_y_px)
+                
+                # clamp to video bounds
+                px = max(0, min(W - 1, px))
+                py = max(0, min(H - 1, py))
+                # keep raw before smoothing
+                px_raw, py_raw = px, py
+                
+                # Add to history and compute smoothed gaze
+                gaze_history.append((float(px_raw), float(py_raw)))
+                if len(gaze_history) > smooth_window:
+                    gaze_history.pop(0)
+                
+                # Apply decaying weighted average if smoothing is enabled
+                if smooth_window > 0 and len(gaze_history) > 0:
+                    weights = []
+                    for i in range(len(gaze_history)):
+                        # More recent points get higher weight
+                        # weight = alpha^(n-1-i) where i=0 is oldest, i=n-1 is newest
+                        weight = smooth_alpha ** (len(gaze_history) - 1 - i)
+                        weights.append(weight)
+                    
+                    # Normalize weights
+                    weight_sum = sum(weights)
+                    if weight_sum > 0:
+                        weights = [w / weight_sum for w in weights]
+                    
+                    # Compute weighted average
+                    px_sm = sum(w * h[0] for w, h in zip(weights, gaze_history))
+                    py_sm = sum(w * h[1] for w, h in zip(weights, gaze_history))
+                    px = int(round(px_sm))
+                    py = int(round(py_sm))
+                    # clamp smoothed coords
+                    px = max(0, min(W - 1, px))
+                    py = max(0, min(H - 1, py))
 
-            boxes = detect_faces(frame, net, conf=args.conf)
+            # Face detection with runtime fallback if CUDA/OpenCL misconfigured
+            try:
+                boxes = detect_faces(frame, net, conf=args.conf)
+            except cv2.error as e:
+                msg = str(e)
+                if ("DNN_BACKEND_CUDA" in msg) or ("CUDA" in msg and "backend" in msg):
+                    # Reconfigure to CPU and retry once
+                    _configure_dnn_backend(net, "cpu", False, False)
+                    print("[DNN] CUDA error encountered; switched to CPU and retrying once…")
+                    boxes = detect_faces(frame, net, conf=args.conf)
+                else:
+                    raise
             face_map = assign_ids(boxes, face_map)
 
             # aoi engine (uses gaze circle)
@@ -324,22 +525,33 @@ def main():
                     hit = circle_intersects_box(px, py, gaze_r_px, box)
                     was_in = entered.get(fid, False)
 
-                    if hit and not was_in:
+                    if hit and not was_in: # Gaze enters box
                         entered[fid] = True
                         entry_t[fid] = video_time
+                        entry_lsl_t[fid] = lsl_time
+                        entry_frame_idx[fid] = frame_idx
+                        entry_gaze[fid] = (gx, gy, px, py)
 
-                    elif hit and was_in:
+                    elif hit and was_in: # Gaze still inside box
                         t0 = entry_t.get(fid)
                         if t0 is not None and (video_time - t0) >= float(args.min_dwell):
                             if (video_time - last_hit_t.get(fid, -1e9)) >= float(args.cooldown):
                                 event_fired = True
-                                fired_info = (fid, box)
+                                # Pass entry metadata along with current box
+                                fired_info = (fid, box, entry_lsl_t.get(fid), entry_t.get(fid), 
+                                            entry_frame_idx.get(fid), entry_gaze.get(fid))
                                 last_hit_t[fid] = video_time
                                 entry_t[fid] = None
+                                entry_lsl_t[fid] = None
+                                entry_frame_idx[fid] = None
+                                entry_gaze[fid] = None
 
-                    elif (not hit) and was_in:
+                    elif (not hit) and was_in: # Gaze exits box before dwell complete
                         entered[fid] = False
                         entry_t[fid] = None
+                        entry_lsl_t[fid] = None
+                        entry_frame_idx[fid] = None
+                        entry_gaze[fid] = None
 
             # face and gaze display
             hud_lines = []
@@ -347,7 +559,14 @@ def main():
             if gx is None or gy is None:
                 hud_lines.append("gaze: None")
             else:
-                hud_lines.append(f"gaze: norm=({gx:0.3f},{gy:0.3f}) px=({px},{py}) r={gaze_r_px}px")
+                offset_str = ""
+                if args.gaze_offset_x_px != 0 or args.gaze_offset_y_px != 0:
+                    offset_str = f" off=({int(round(args.gaze_offset_x_px))},{int(round(args.gaze_offset_y_px))})"
+                hud_lines.append(
+                    f"gaze: norm=({gx:0.3f},{gy:0.3f}) px=({px},{py}) r={gaze_r_px}px{offset_str}"
+                )
+                if smooth_window > 0 and px_raw is not None and py_raw is not None:
+                    hud_lines.append(f"unsmoothed: px=({px_raw},{py_raw}) window={smooth_window} alpha={smooth_alpha:0.2f}")
             hud_lines.append(f"event_any_frame: {event_fired}")
 
             MAX_FACE_LINES = max(0, int(args.hud_face_lines))
@@ -368,9 +587,17 @@ def main():
 
             # draw gaze and circle
             if px is not None and py is not None:
-                cv2.circle(frame, (px, py), max(3, min(8, gaze_r_px//2)), (255, 0, 0), -1) # center
+                # Draw unsmoothed gaze point (red) if smoothing is enabled and different from smoothed
+                if smooth_window > 0 and px_raw is not None and py_raw is not None:
+                    if px_raw != px or py_raw != py:
+                        cv2.circle(frame, (px_raw, py_raw), max(2, min(6, gaze_r_px//3)), (0, 0, 255), -1) # unsmoothed gaze point (red)
+                        # Draw line connecting unsmoothed to smoothed
+                        cv2.line(frame, (px_raw, py_raw), (px, py), (0, 0, 255), 1)
+                
+                # Draw gaze point (blue)
+                cv2.circle(frame, (px, py), max(3, min(8, gaze_r_px//2)), (255, 0, 0), -1) # center (smoothed)
                 if gaze_r_px > 0:
-                    cv2.circle(frame, (px, py), gaze_r_px, (255, 0, 0), 2) # radius
+                    cv2.circle(frame, (px, py), gaze_r_px, (255, 0, 0), 2) # radius (smoothed)
 
             y0 = 20
             for ln in hud_lines:
@@ -379,24 +606,64 @@ def main():
                 y0 += 24
 
             if args.display:
-                cv2.imshow("Offline AOI (labeled)", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
+                # Render only every Nth frame
+                if (frame_idx % display_every) == 0:
+                    if args.display_threaded:
+                        # Push latest frame for display; drop oldest if queue is full
+                        if display_queue.full():
+                            try:
+                                _ = display_queue.get_nowait()
+                            except Exception:
+                                pass
+                        try:
+                            display_queue.put_nowait(frame)
+                        except Exception:
+                            pass
+                    else:
+                        cv2.imshow(window_name, frame)
+                        key = cv2.waitKey(1) & 0xFF
+                        if key == ord('q') or key == 27:
+                            break
+                        # Detect window close
+                        try:
+                            if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+                                break
+                        except cv2.error:
+                            break
+                # If threaded, also check if display requested stop
+                if args.display_threaded and display_stop.is_set():
                     break
+
+            # Update progress bar
+            update_interval = max(1, int(args.progress_update_interval))
+            if pbar is not None and (frame_idx % update_interval) == 0:
+                pbar.update(update_interval)
 
             vw.write(frame) # save
 
             # write events csv file (only events true)
-            def write_event_row(fid: Optional[int], box: Optional[Tuple[int,int,int,int]], is_event: bool):
+            def write_event_row(fid: Optional[int], box: Optional[Tuple[int,int,int,int]], is_event: bool, 
+                              entry_lsl: Optional[float] = None, entry_video: Optional[float] = None,
+                              entry_fidx: Optional[int] = None, entry_g: Optional[Tuple] = None):
                 x1=y1=x2=y2=None
                 if box is not None:
                     x1, y1, x2, y2 = map(int, box)
+                # Use entry timestamps if provided, otherwise fall back to current frame
+                event_lsl_time = entry_lsl if entry_lsl is not None else lsl_time
+                event_video_time = entry_video if entry_video is not None else video_time
+                event_frame_idx = entry_fidx if entry_fidx is not None else frame_idx
+                # Use entry gaze coordinates if provided
+                if entry_g is not None:
+                    e_gx, e_gy, e_px, e_py = entry_g
+                else:
+                    e_gx, e_gy, e_px, e_py = gx, gy, px, py
                 row = dict(
-                    lsl_time = round(lsl_time, 6),
-                    video_time = round(video_time, 6),
-                    frame_idx = frame_idx,
-                    gaze_x = (None if gx is None else round(gx, 4)),
-                    gaze_y = (None if gy is None else round(gy, 4)),
-                    px = px, py = py, gaze_radius_px = gaze_r_px,
+                    lsl_time = round(event_lsl_time, 6),
+                    video_time = round(event_video_time, 6),
+                    frame_idx = event_frame_idx,
+                    gaze_x = (None if e_gx is None else round(e_gx, 4)),
+                    gaze_y = (None if e_gy is None else round(e_gy, 4)),
+                    px = e_px, py = e_py, gaze_radius_px = gaze_r_px,
                     face_id = fid,
                     x1 = x1, y1 = y1, x2 = x2, y2 = y2,
                     event = bool(is_event)
@@ -404,17 +671,18 @@ def main():
                 evt_writer.writerow(row)
 
             if event_fired and fired_info is not None:
-                fid, box = fired_info
+                fid, box, e_lsl, e_video, e_fidx, e_gaze = fired_info
                 if fid is not None:
-                    current_event_time = float(lsl_time)
+                    # Use entry LSL time for prune window check
+                    current_event_time = float(e_lsl if e_lsl is not None else lsl_time)
                     last_kept = last_kept_event_time_by_face.get(fid)
                     if (last_kept is None) or ((current_event_time - last_kept) >= float(args.event_prune_window)):
-                        write_event_row(fid, box, True)
+                        write_event_row(fid, box, True, e_lsl, e_video, e_fidx, e_gaze)
                         last_kept_event_time_by_face[fid] = current_event_time
                     else:
                         pass
                 else:
-                    write_event_row(fid, box, True)
+                    write_event_row(fid, box, True, e_lsl, e_video, e_fidx, e_gaze)
 
             # write all frames
             base_frm = dict(
@@ -441,6 +709,13 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        if pbar is not None:
+            # Update any remaining frames not caught by the modulo
+            update_interval = max(1, int(args.progress_update_interval))
+            remainder = frame_idx % update_interval
+            if remainder > 0:
+                pbar.update(remainder)
+            pbar.close()
         try:
             f_evt.flush(); f_evt.close()
         except Exception:

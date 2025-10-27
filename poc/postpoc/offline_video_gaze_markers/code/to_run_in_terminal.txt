@@ -13,3 +13,23 @@ python manual_marker_aoi.py \
   --gaze-radius-px 60 \
   --event-prune-window 7.0 \
   --display
+
+
+  RUN IN WINDOWS (from offline_video_gaze_markers):
+  python code\manual_marker_aoi.py `
+  --video files\scenevideo.mp4 `
+  --gaze files\gazedata.gz `
+  --out files\events_150down.csv `
+  --frames-csv files\frames_150down.csv `
+  --video-out files\labeled.mp4 `
+  --gaze-radius-px 100 `
+  --gaze-offset-y-px 150 `
+  --event-prune-window 1.0 `
+  --conf 0.5 `
+  --min-dwell 0.05 `
+  --cooldown 0.5 `
+  --display `
+  --display-every 5 `
+  --display-threaded `
+  --smooth-window 5 `
+  --smooth-alpha 0.5 `
