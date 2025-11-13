@@ -66,3 +66,6 @@ coverage.xml
 # Caffe model files
 *.prototxt
 *.caffemodel
+
+# Data files
+Data/
