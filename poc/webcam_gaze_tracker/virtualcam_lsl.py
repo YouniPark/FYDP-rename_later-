@@ -3,11 +3,11 @@
 # Adds LSL timestamp and webcam to OBS virtual camera frames
 # 
 # To run: 
-# python virtualcam_lsl.py --filter kde
+# python virtualcam_lsl.py
 # (from within poc/webcam_gaze_tracker)
 #
 # Or without calibration: 
-# python virtualcam_lsl.py --model-file Data/gaze_model.pkl 
+# python virtualcam_lsl.py --model-file Data/gaze_model.pkl
 # (from within poc/webcam_gaze_tracker)
 
 import os
@@ -63,6 +63,7 @@ def run_virtualcam():
             run_lissajous_calibration(gaze_estimator, camera_index=camera_index)
         
         gaze_estimator.save_model("Data/gaze_model.pkl")
+        print("[virtualcam] Gaze model saved to Data/gaze_model.pkl")
 
     screen_width, screen_height = get_screen_size()
 
