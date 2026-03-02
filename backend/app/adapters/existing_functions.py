@@ -49,7 +49,7 @@ def call_ml_classifier_predict(features: np.ndarray) -> bool:
 
 
 def call_opencv_dnn_face_recognition(image: Any, face_db: list[dict[str, Any]], face_json: dict[str, Any]) -> dict[str, Any]:
-    # TODO: If your real function signature differs, adapt only here.
+    # TODO: adapt
     return opencv_dnn_face_recognition(image, face_db, face_json)
 
 
