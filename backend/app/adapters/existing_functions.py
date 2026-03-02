@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 
 try:
-    # TODO: Replace `external_impl` with your real module path if names differ.
+    # TODO: replace `external_impl`
     from external_impl import (  # type: ignore
         connect_eeg_lsl,
         create_epoch,
