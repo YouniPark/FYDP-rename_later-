@@ -39,7 +39,7 @@ class FaceService:
         self.state_cache.set_face_result(timestamp, result)
         self.db.insert_recognition_record(timestamp=timestamp, result=result)
 
-        # Optional: auto-add unknown faces into face db when upstream includes enrollment payload.
+        # maybe: auto-add unknown faces into face db when upstream includes enrollment payload
         if result.get("enroll"):
             self.db.add_or_update_face(result["enroll"], external_id=result["enroll"].get("id"))
 
