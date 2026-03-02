@@ -25,7 +25,6 @@ class CueService:
         face_result: dict[str, Any] | None = None,
         cue_json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        # Fill missing values from newest cache snapshot for coherent cue composition.
         snap = self.state_cache.snapshot()
         resolved_classifier = classifier_flag
         if resolved_classifier is None and snap["classifier"] is not None:
