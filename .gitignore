@@ -69,3 +69,11 @@ coverage.xml
 
 # Data files
 Data/
+
+# Experiment data files
+exp*.json
+exp*.xdf
+*eeg*.json
+*eeg*.xdf
+*experiment*.xdf
+*Experiment_Data*.json

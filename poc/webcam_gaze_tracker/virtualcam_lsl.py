@@ -9,6 +9,8 @@
 # Or without calibration: 
 # python virtualcam_lsl.py --model-file Data/gaze_model.pkl
 # (from within poc/webcam_gaze_tracker)
+# 
+# IF camera not working add --camera 1
 
 import os
 
@@ -97,6 +99,7 @@ def run_virtualcam():
 
     with camera(camera_index) as cap:
         cam_fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
+        print(f"[virtualcam] Detected camera FPS: {cam_fps}")
         with pyvirtualcam.Camera(
             width=screen_width,
             height=screen_height,
@@ -129,7 +132,7 @@ def run_virtualcam():
                         output,
                         x_pred,
                         y_pred,
-                        alpha=0.85,
+                        alpha=0.9,
                         radius_outer=gaze_radius,
                         radius_inner=0,
                         color_outer=(0, 0, 255),
@@ -143,13 +146,12 @@ def run_virtualcam():
                 lsl_time = local_clock() if local_clock is not None else None
                 if lsl_time is not None:
                     lsl_text = f"LSL Time: {lsl_time:.6f}"
-                    # Draw text with black border for better visibility
                     text_position = (20, 40)
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     font_scale = 1
                     thickness = 2
                     border_size = 6
-                    # Draw black border (outline)
+                    # Draw black border
                     cv2.putText(
                         output,
                         lsl_text,
