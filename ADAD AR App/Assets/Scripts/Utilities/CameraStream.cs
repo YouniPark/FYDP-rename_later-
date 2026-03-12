@@ -9,12 +9,18 @@ using MagicLeap.Android;
 using UnityEngine.Android;
 
 /// <summary>
-/// Streams Magic Leap 2 camera video frames in RGBA format, displays them on a RawImage,
-/// and exposes the latest frame as Texture2D/byte[] for Sentis preprocessing.
+/// Streams Magic Leap 2 camera video frames in RGBA format and exposes the latest frame
+/// as Texture2D for Sentis inference and byte[] for CPU preprocessing.
 /// </summary>
-public class ImageCaptureExample : MonoBehaviour
+public class ImageStream : MonoBehaviour
 {
     private const MLCamera.Identifier CameraIdentifier = MLCamera.Identifier.CV;
+
+    [SerializeField, Tooltip("Optional centralized permission component. If assigned, this script waits for it instead of requesting camera permission itself.")]
+    private PermissionRequester permissionRequester;
+
+    [SerializeField, Tooltip("Fallback to local camera permission request when no permission requester is assigned.")]
+    private bool requestPermissionWhenNoRequester = true;
 
     [SerializeField, Tooltip("The UI RawImage to display camera video")]
     private RawImage _screenRendererRGB = null;
@@ -50,21 +56,47 @@ public class ImageCaptureExample : MonoBehaviour
     private bool hasValidIntrinsics;
     private bool hasValidFramePose;
     private long latestFrameTimestamp;
+    private bool startupTriggered;
 
     private void Awake()
     {
-        Permissions.RequestPermissions(
-            new string[] { Permission.Camera },
-            OnPermissionGranted,
-            OnPermissionDenied,
-            OnPermissionDenied
-        );
+        if (permissionRequester == null)
+        {
+            permissionRequester = FindAnyObjectByType<PermissionRequester>();
+        }
 
-        Debug.Log("[CameraTest] Awake: requested camera permission.");
+        if (permissionRequester != null)
+        {
+            permissionRequester.OnPermissionsResolved += OnPermissionsResolved;
+            if (permissionRequester.IsCameraGranted)
+            {
+                StartCameraCaptureOnce();
+            }
+            Debug.Log("[ImageStream] Awake: waiting on PermissionRequester for camera permission.");
+        }
+        else if (requestPermissionWhenNoRequester)
+        {
+            Permissions.RequestPermissions(
+                new[] { Permission.Camera },
+                OnPermissionGranted,
+                OnPermissionDenied,
+                OnPermissionDenied);
+
+            Debug.Log("[ImageStream] Awake: requested camera permission directly.");
+        }
+        else
+        {
+            Debug.LogWarning("[ImageStream] No permission requester assigned and direct permission fallback disabled.");
+        }
     }
 
     private void OnDisable()
     {
+        if (permissionRequester != null)
+        {
+            permissionRequester.OnPermissionsResolved -= OnPermissionsResolved;
+        }
+
         DisableMLCamera();
 
         if (videoTexture != null)
@@ -108,6 +140,28 @@ public class ImageCaptureExample : MonoBehaviour
 
     private void OnPermissionGranted(string permission)
     {
+        StartCameraCaptureOnce();
+    }
+
+    private void OnPermissionsResolved(bool allGranted)
+    {
+        if (!allGranted || permissionRequester == null || !permissionRequester.IsCameraGranted)
+        {
+            MLPluginLog.Error("[ImageStream] Camera permission not granted through PermissionRequester.");
+            return;
+        }
+
+        StartCameraCaptureOnce();
+    }
+
+    private void StartCameraCaptureOnce()
+    {
+        if (startupTriggered)
+        {
+            return;
+        }
+
+        startupTriggered = true;
         StartCoroutine(EnableMLCamera());
     }
 
@@ -140,18 +194,18 @@ public class ImageCaptureExample : MonoBehaviour
         context.EnableVideoStabilization = true;
         context.Flags = MLCameraBase.ConnectFlag.CamOnly;
 
-        Debug.Log($"[CameraTest] Connecting to camera stream: {CameraIdentifier}");
+        Debug.Log($"[ImageStream] Connecting to camera stream: {CameraIdentifier}");
 
         colorCamera = await MLCamera.CreateAndConnectAsync(context);
         if (colorCamera != null)
         {
             colorCamera.OnRawVideoFrameAvailable += OnRawVideoFrameAvailable;
             isCameraConnected = true;
-            Debug.Log("[CameraTest] Camera connected successfully.");
+            Debug.Log("[ImageStream] Camera connected successfully.");
         }
         else
         {
-            Debug.LogError("[CameraTest] Failed to connect to camera.");
+            Debug.LogError("[ImageStream] Failed to connect to camera.");
         }
     }
 
@@ -177,7 +231,7 @@ public class ImageCaptureExample : MonoBehaviour
         MLResult prepareResult = colorCamera.PrepareCapture(captureConfig, out MLCamera.Metadata _);
         if (!prepareResult.IsOk)
         {
-            Debug.LogError("[CameraTest] PrepareCapture failed for video stream.");
+            Debug.LogError("[ImageStream] PrepareCapture failed for video stream.");
         }
     }
 
@@ -193,7 +247,7 @@ public class ImageCaptureExample : MonoBehaviour
             MLResult aeAwbResult = colorCamera.PreCaptureAEAWB();
             if (!aeAwbResult.IsOk)
             {
-                Debug.LogWarning("[CameraTest] PreCaptureAEAWB failed before video start.");
+                Debug.LogWarning("[ImageStream] PreCaptureAEAWB failed before video start.");
             }
         }
 
@@ -202,7 +256,7 @@ public class ImageCaptureExample : MonoBehaviour
 
         if (!isCapturingVideo)
         {
-            Debug.LogError("[CameraTest] CaptureVideoStart failed.");
+            Debug.LogError("[ImageStream] CaptureVideoStart failed.");
         }
     }
 

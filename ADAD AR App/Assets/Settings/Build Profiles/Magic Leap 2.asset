@@ -22,8 +22,10 @@ MonoBehaviour:
   m_Scenes:
   - m_enabled: 0
     m_path: Assets/Scenes/GazeTest.unity
-  - m_enabled: 1
+  - m_enabled: 0
     m_path: Assets/Scenes/CamTest.unity
+  - m_enabled: 1
+    m_path: Assets/Scenes/GazeAoiDebug.unity
   m_HasScriptingDefines: 0
   m_ScriptingDefines: []
   m_PlayerSettingsYaml:
@@ -40,7 +42,7 @@ MonoBehaviour:
     - line: '|   useOnDemandResources: 0'
     - line: '|   accelerometerFrequency: 60'
     - line: '|   companyName: ADAD'
-    - line: '|   productName: ADAD AR App (CamTest)'
+    - line: '|   productName: ADAD AR App (GazeAoiDebug)'
     - line: '|   defaultCursor: {instanceID: 0}'
     - line: '|   cursorHotspot: {x: 0, y: 0}'
     - line: '|   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b:
@@ -1046,7 +1048,7 @@ MonoBehaviour:
         m_ExportAsGoogleAndroidProject: 0
         m_DebugSymbolLevel: 1
         m_DebugSymbolFormat: 5
-        m_CurrentDeploymentTargetId: GA62XT01005S
+        m_CurrentDeploymentTargetId: __builtin__target_default
         m_BuildType: 2
         m_LinkTimeOptimization: 0
         m_BuildAppBundle: 0

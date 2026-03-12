@@ -33,6 +33,13 @@ public class GazeCollisionTest : MonoBehaviour
     private Material highlightMaterial;
 
     /// <summary>
+    /// When true, sphere highlight only activates after first fixation event in current hit window.
+    /// When false, sphere highlights immediately on collision.
+    /// </summary>
+    [SerializeField]
+    private bool highlightOnFixation = true;
+
+    /// <summary>
     /// Minimum distance the gaze point must move before we update the fixation target
     /// Prevents jitter from small tracking noise
     /// </summary>
@@ -85,15 +92,29 @@ public class GazeCollisionTest : MonoBehaviour
     // ===== Gaze Type Selection =====
     private enum GazeType { EyeGazeExt, EyeGazeML, Fixation }
     [SerializeField] 
-    private GazeType currentGazeType = GazeType.EyeGazeML;
+    private GazeType currentGazeType = GazeType.Fixation;
 
     // ===== Event Tracking =====
     
     /// <summary>
-    /// Whether the sphere was hit by the gaze ray in the previous frame
-    /// Used to detect state changes for logging
+    /// Whether the sphere was hit by the gaze ray in the previous frame.
+    /// Used to detect state changes for interaction start/end logging.
     /// </summary>
     private bool wasHitLastFrame = false;
+
+    // ===== Gaze Behavior Tracking =====
+
+    /// <summary>
+    /// The most recently observed gaze behavior type while the sphere is being hit.
+    /// Logged on change so device logs reveal the actual enum value names.
+    /// </summary>
+    private string lastBehaviorType;
+
+    /// <summary>
+    /// Prevents the FIXATION EVENT log from firing more than once per continuous gaze hit.
+    /// Reset when the gaze ray leaves the sphere.
+    /// </summary>
+    private bool fixationLoggedForCurrentHit;
 
     // Called when the script instance is being loaded 
     private void Awake()
@@ -294,22 +315,50 @@ public class GazeCollisionTest : MonoBehaviour
             if (hitInfo.transform.gameObject == sphereRenderer.gameObject)
             {
                 // The hit object is our sphere
-                sphereRenderer.sharedMaterial = highlightMaterial;
                 isSphereHit = true;
             }
             else
             {
                 // Ray hit something else, not our sphere
-                sphereRenderer.sharedMaterial = defaultMaterial;
                 isSphereHit = false;
             }
         }
         else
         {
             // Ray hit nothing
-            sphereRenderer.sharedMaterial = defaultMaterial;
             isSphereHit = false;
         }
+
+        // ===== Track Gaze Behavior =====
+        // While the sphere is being hit, poll the gaze behavior type each frame.
+        if (isSphereHit)
+        {
+            GazeBehavior gazeBehavior = eyeTrackerData.GazeBehaviorData;
+            string behaviorName = gazeBehavior.GazeBehaviorType.ToString();
+
+            if (behaviorName != lastBehaviorType)
+            {
+                Debug.Log($"[GazeCollisionTest] Gaze behavior: {behaviorName}");
+                lastBehaviorType = behaviorName;
+            }
+
+            // First fixation event on this continuous hit — fires once per gaze engagement
+            if (!fixationLoggedForCurrentHit && behaviorName.ToLower().Contains("fixation"))
+            {
+                Debug.Log("[GazeCollisionTest] FIXATION EVENT: First fixation detected while looking at the sphere.");
+                fixationLoggedForCurrentHit = true;
+            }
+        }
+        else if (!isSphereHit && wasHitLastFrame)
+        {
+            // Gaze left sphere — reset behavior tracking for the next hit
+            lastBehaviorType = null;
+            fixationLoggedForCurrentHit = false;
+        }
+
+        // ===== Apply Highlight =====
+        bool shouldHighlight = isSphereHit && (!highlightOnFixation || fixationLoggedForCurrentHit);
+        sphereRenderer.sharedMaterial = shouldHighlight ? highlightMaterial : defaultMaterial;
 
         // ===== Log State Changes =====
         // Log when the interaction state changes (hit -> no hit or no hit -> hit)

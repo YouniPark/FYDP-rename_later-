@@ -6,7 +6,7 @@ using Unity.InferenceEngine;
 using Unity.Mathematics;
 
 /// <summary>
-/// Runs BlazeFace detection on frames coming from ImageCaptureExample.
+/// Runs BlazeFace detection on frames coming from ImageStream.
 /// Requires a BlazeFace model that already includes NMS in the graph.
 /// </summary>
 public class BlazeFaceDetector : MonoBehaviour
@@ -16,7 +16,7 @@ public class BlazeFaceDetector : MonoBehaviour
     [SerializeField] private TextAsset anchorsCsv;
 
     [Header("Camera Source")]
-    [SerializeField] private ImageCaptureExample cameraSource;
+    [SerializeField] private ImageStream cameraSource;
 
     [Header("Detection Settings")]
     public float scoreThreshold = 0.5f;
@@ -79,7 +79,7 @@ public class BlazeFaceDetector : MonoBehaviour
             // Log on first occurrence and every 10 ticks after to avoid spam.
             if (_nullFrameSkipCount == 1 || _nullFrameSkipCount % 10 == 0)
                 Debug.LogWarning($"[BlazeFace] Frame is null (tick #{_nullFrameSkipCount}). " +
-                                  "Camera may not be ready, or _screenRendererRGB is unassigned in ImageCaptureExample.");
+                                  "Camera provider may still be warming up or capture has not started yet.");
             return;
         }
 

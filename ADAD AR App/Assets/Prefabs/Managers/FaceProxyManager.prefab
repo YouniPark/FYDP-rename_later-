@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &120749009837402262
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7845006771811331689}
+  - component: {fileID: 4645241341020615907}
+  m_Layer: 0
+  m_Name: FaceProxyManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7845006771811331689
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 120749009837402262}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4645241341020615907
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 120749009837402262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8de2324199ffc2499a796d7d00bf9fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FaceProxyProjector
+  detector: {fileID: 0}
+  cameraSource: {fileID: 0}
+  faceProxyPrefab: {fileID: 2116953545444627073, guid: 522633f1d08b7c4479e7464d46aacea3,
+    type: 3}
+  proxyParent: {fileID: 0}
+  trackingSpaceTransform: {fileID: 0}
+  debugHeadTransform: {fileID: 0}
+  maxActiveProxies: 5
+  holdDuration: 0.35
+  smoothingTime: 0.1
+  useAdaptiveDepth: 1
+  minDepth: 0.4
+  maxDepth: 1.3
+  fixedDepthFallback: 1
+  faceAreaFar: 0.04
+  faceAreaNear: 0.16
+  enableProjectorLogs: 1
+  missLogEveryNEvents: 20
+  logPoseOriginDelta: 0
+  logFaceArea: 0
+  faceAreaLogEveryNDetections: 20
+  visualizeRays: 0
+  rayMaterial: {fileID: 2100000, guid: f13745b7e0d6dc7498f0b7fad6b12cae, type: 2}
+  rayWidth: 0.005
+  addGazeTargetToSpawnedProxies: 1
+  proxyDefaultMaterial: {fileID: 0}
+  proxyHighlightMaterial: {fileID: 0}

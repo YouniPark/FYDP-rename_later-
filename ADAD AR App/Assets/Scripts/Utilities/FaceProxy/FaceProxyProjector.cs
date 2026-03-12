@@ -8,7 +8,7 @@ public class FaceProxyProjector : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private BlazeFaceDetector detector;
-    [SerializeField] private ImageCaptureExample cameraSource;
+    [SerializeField] private ImageStream cameraSource;
     [SerializeField] private GameObject faceProxyPrefab;
     [SerializeField] private Transform proxyParent;
     [Tooltip("Assign the tracking-space root (usually XR Origin). If left null, frame pose is assumed world-space.")]
@@ -43,6 +43,11 @@ public class FaceProxyProjector : MonoBehaviour
     [Tooltip("Optional material for the debug ray LineRenderer. Use an unlit transparent material if you want alpha control.")]
     [SerializeField] private Material rayMaterial;
     [SerializeField, Min(0.001f)] private float rayWidth = 0.01f;
+
+    [Header("Gaze Interaction")]
+    [SerializeField] private bool addGazeTargetToSpawnedProxies = true;
+    [SerializeField] private Material proxyDefaultMaterial;
+    [SerializeField] private Material proxyHighlightMaterial;
 
     private sealed class ProxySlot
     {
@@ -262,6 +267,11 @@ public class FaceProxyProjector : MonoBehaviour
             instance.name = $"FaceProxy_{_slots.Count}";
             instance.SetActive(false);
 
+            if (addGazeTargetToSpawnedProxies)
+            {
+                EnsureGazeTarget(instance);
+            }
+
             _slots.Add(new ProxySlot
             {
                 transform = instance.transform,
@@ -273,6 +283,17 @@ public class FaceProxyProjector : MonoBehaviour
                 hasTarget = false
             });
         }
+    }
+
+    private void EnsureGazeTarget(GameObject instance)
+    {
+        FaceProxyGazeTarget gazeTarget = instance.GetComponentInChildren<FaceProxyGazeTarget>();
+        if (gazeTarget == null)
+        {
+            gazeTarget = instance.AddComponent<FaceProxyGazeTarget>();
+        }
+
+        gazeTarget.Configure(proxyDefaultMaterial, proxyHighlightMaterial);
     }
 
     private LineRenderer CreateRayRenderer(Transform proxyTransform)
