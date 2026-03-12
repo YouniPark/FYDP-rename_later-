@@ -10,7 +10,7 @@
       <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
     </activity>
     <!--Used when Application Entry is set to GameActivity, otherwise remove this activity block-->
-    <activity android:name="com.unity3d.player.UnityPlayerGameActivity" android:theme="@style/BaseUnityGameActivityTheme">
+    <activity android:name="com.unity3d.player.UnityPlayerGameActivity">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
@@ -23,4 +23,8 @@
   <uses-permission android:name="com.magicleap.permission.EYE_TRACKING" />
   <uses-permission android:name="com.magicleap.permission.DEPTH_CAMERA" />
   <uses-permission android:name="com.magicleap.permission.PUPIL_SIZE" />
+  <uses-permission android:name="com.magicleap.permission.SPATIAL_MAPPING" />
+  <uses-permission android:name="com.magicleap.permission.SPATIAL_ANCHOR" />
+  <uses-permission android:name="com.magicleap.permission.SPACE_MANAGER" />
+  <uses-permission android:name="com.magicleap.permission.MARKER_TRACKING" />
 </manifest>

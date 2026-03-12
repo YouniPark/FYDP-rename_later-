@@ -109,7 +109,7 @@ public class GazeCollisionTest : MonoBehaviour
         // Cache the main camera for raycasting
         mainCamera = Camera.main;
 
-        // Debug.Log("[GazeCollisionTest] Awake: Permissions requested, camera cached.");
+        Debug.Log("[GazeCollisionTest] Awake: Permissions requested, camera cached.");
     }
 
     // Called every frame
@@ -180,13 +180,11 @@ public class GazeCollisionTest : MonoBehaviour
     /// </summary>
     private void Initialize()
     {
-        // Get the eye tracker feature from OpenXR settings
+        // Copied from GazeTrackingExample.cs
         eyeTrackerFeature = OpenXRSettings.Instance.GetFeature<MagicLeapEyeTrackerFeature>();
-        
-        // Create the actual eye tracker (native resource)
         eyeTrackerFeature.CreateEyeTracker();
-        
         isInitialized = true;
+
         Debug.Log("[GazeCollisionTest] Initialize: Eye tracker created and ready.");
     }
 
