@@ -17,16 +17,14 @@ async def build_cue_decision(
     event_id: str,
     event_lsl_timestamp: float,
     is_unfamiliar: bool,
-    people_id: int,
 ) -> CueDecisionMessage:
     face_id = state.current_face_id
-    send_cue, cue_payload = cue_preparation(is_unfamiliar, people_id)
+    send_cue, cue_payload = cue_preparation(is_unfamiliar, face_id)
     return CueDecisionMessage(
         event_id=event_id,
         event_lsl_timestamp=event_lsl_timestamp,
         face_id=face_id,
         is_unfamiliar=is_unfamiliar,
-        people_id=people_id,
         send_cue=bool(send_cue),
         cue=cue_payload if send_cue else None,
         server_time=datetime.now(timezone.utc),
