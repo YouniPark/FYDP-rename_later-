@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +16,64 @@ class Settings(BaseSettings):
     max_frame_queue: int = Field(default=32, alias="MAX_FRAME_QUEUE")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_upload_bytes: int = Field(default=5_000_000, alias="MAX_UPLOAD_BYTES")
+
+    project_root: Path = Path(__file__).resolve().parents[2]
+
+    webserver_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2] / "WebServer",
+        alias="WEBSERVER_DIR",
+    )
+
+    people_database_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "database"
+        / "PeopleDatabase",
+        alias="PEOPLE_DATABASE_DIR",
+    )
+
+    people_json_path: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "database"
+        / "PeopleDatabase"
+        / "people.json",
+        alias="PEOPLE_JSON_PATH",
+    )
+
+    setting_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "setting",
+        alias="SETTING_DIR",
+    )
+
+    images_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "database"
+        / "PeopleDatabase"
+        / "images",
+        alias="IMAGES_DIR",
+    )
+
+    auditory_cue_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "database"
+        / "PeopleDatabase"
+        / "auditory cues",
+        alias="AUDITORY_CUE_DIR",
+    )
+
+    headshots_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "database"
+        / "PeopleDatabase"
+        / "headshots",
+        alias="HEADSHOTS_DIR",
+    )
 
 
 settings = Settings()
