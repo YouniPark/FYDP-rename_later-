@@ -1,0 +1,12 @@
+{
+  "font_size": "medium",
+  "image_size": "medium",
+  "duration_time": "medium",
+  "voice_type": "male",
+  "cue_selection": [
+    "name",
+    "relationship",
+    "image",
+    "audio"
+  ]
+}
