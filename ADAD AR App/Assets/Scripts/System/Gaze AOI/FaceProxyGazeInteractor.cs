@@ -15,6 +15,12 @@ public class FaceProxyGazeInteractor : MonoBehaviour
 {
     [SerializeField] private EyeGazeRayProvider gazeProvider;
 
+    /// <summary>
+    /// Fired when the first fixation is detected during the current continuous proxy-collision window.
+    /// Payload is the currently hit FaceProxyGazeTarget (may be null in edge cases).
+    /// </summary>
+    public event System.Action<FaceProxyGazeTarget> OnFixationEvent;
+
     [Tooltip("Maximum distance for gaze raycast hits.")]
     [SerializeField] private float maxRayDistance = 10f;
 
@@ -23,6 +29,9 @@ public class FaceProxyGazeInteractor : MonoBehaviour
 
     [Tooltip("If enabled, a debug ray will be drawn in the Scene view showing the gaze ray each frame.")]
     [SerializeField] private bool drawDebugRay = false;
+
+    [Tooltip("If enabled, logs gaze behavior transitions while targeting a proxy.")]
+    [SerializeField] private bool logGazeBehavior = false;
 
     [Tooltip("When true, proxy highlight starts only after first fixation event in a collision window. When false, highlight starts on collision.")]
     [SerializeField] private bool highlightOnFixation = true;
@@ -113,7 +122,11 @@ public class FaceProxyGazeInteractor : MonoBehaviour
         // Log only on transition to avoid per-frame spam
         if (behaviorName != _lastBehaviorName)
         {
-            Debug.Log($"[FaceProxyGazeInteractor] Gaze behavior: '{behaviorName}' while targeting {_currentTarget.name}.");
+            if (logGazeBehavior)
+            {
+                Debug.Log($"[FaceProxyGazeInteractor] Gaze behavior: '{behaviorName}' while targeting {_currentTarget.name}.");
+            }
+
             _lastBehaviorName = behaviorName;
         }
 
@@ -122,6 +135,7 @@ public class FaceProxyGazeInteractor : MonoBehaviour
         {
             Debug.Log($"[FaceProxyGazeInteractor] FIXATION EVENT: First fixation detected while gaze is colliding with a face proxy (current={_currentTarget.name}).");
             _fixationLoggedForCollision = true;
+            OnFixationEvent?.Invoke(_currentTarget);
 
             if (_currentTarget != null && highlightOnFixation)
             {
