@@ -19,11 +19,13 @@ class Settings(BaseSettings):
 
     project_root: Path = Path(__file__).resolve().parents[2]
 
+    # webserver directory 
     webserver_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[2] / "WebServer",
         alias="WEBSERVER_DIR",
     )
 
+    # PeopleDatabase directory (where all the data - auditory cues, images, headshots, and information)
     people_database_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[2]
         / "WebServer"
@@ -32,6 +34,7 @@ class Settings(BaseSettings):
         alias="PEOPLE_DATABASE_DIR",
     )
 
+    # people.json file where all the information is stored 
     people_json_path: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[2]
         / "WebServer"
@@ -41,13 +44,7 @@ class Settings(BaseSettings):
         alias="PEOPLE_JSON_PATH",
     )
 
-    setting_dir: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[2]
-        / "WebServer"
-        / "setting",
-        alias="SETTING_DIR",
-    )
-
+    # images folder directory where all the cue images are stored 
     images_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[2]
         / "WebServer"
@@ -57,6 +54,7 @@ class Settings(BaseSettings):
         alias="IMAGES_DIR",
     )
 
+    # auditory cues directory where all the auditory cues are stored 
     auditory_cue_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[2]
         / "WebServer"
@@ -66,6 +64,7 @@ class Settings(BaseSettings):
         alias="AUDITORY_CUE_DIR",
     )
 
+    # headshots folder directory where all the headshot videos are stored (for facial recognition)
     headshots_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[2]
         / "WebServer"
@@ -73,6 +72,14 @@ class Settings(BaseSettings):
         / "PeopleDatabase"
         / "headshots",
         alias="HEADSHOTS_DIR",
+    )
+
+    # setting directory
+    setting_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "WebServer"
+        / "setting",
+        alias="SETTING_DIR",
     )
 
 

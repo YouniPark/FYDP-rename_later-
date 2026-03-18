@@ -1,0 +1,6 @@
+fastapi 
+uvicorn[standard] 
+suno-bark 
+scipy 
+python-multipart 
+torch

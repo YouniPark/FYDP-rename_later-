@@ -9,7 +9,13 @@ from app.storage.models import CueRecord, FaceRecord
 class AppState:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.db = LocalDB(settings.data_dir, settings.face_images_dir, settings.cue_images_dir)
+        self.db = LocalDB(
+            data_dir=settings.data_dir,
+            people_json_path=settings.people_json_path,
+            images_dir=settings.images_dir,
+            headshots_dir=settings.headshots_dir,
+            auditory_cue_dir=settings.auditory_cue_dir,
+        )
         self.db.ensure_dirs()
 
         self.face_db_lock = asyncio.Lock()
