@@ -119,6 +119,79 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1001 &39253057
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3347723199413240335, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: autoEnable
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158874560778481479, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6747855699875678839, guid: c60a1c028e1c34cdbb18731e8f33f4df,
+        type: 3}
+      propertyPath: m_Name
+      value: MLSpectator
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c60a1c028e1c34cdbb18731e8f33f4df, type: 3}
 --- !u!114 &94743640 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 3381340449592359223, guid: 940e8938a4f4d8f478b92c7dc4708ed6,
@@ -192,7 +265,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 912688754}
+  - component: {fileID: 912688757}
   - component: {fileID: 912688755}
+  - component: {fileID: 912688756}
   m_Layer: 0
   m_Name: ConnectionManager
   m_TagString: Untagged
@@ -230,9 +305,64 @@ MonoBehaviour:
   gazeInteractor: {fileID: 1275422905}
   cueManager: {fileID: 1299692931}
   spawnCueDirectlyOnFixation: 1
-  cycleOnFixation: 1
+  routingMode: 2
+  fixationToCueDelaySeconds: 0.5
   totalPeople: 4
+  backendLookupConfig:
+    videoTransport: 0
+    inferenceSampleFps: 20
+    memoryWindowSeconds: 1.5
+    unknownThreshold: 0.5
+    jpegQuality: 100
+    videoWsUrl: ws://10.0.0.1:8000/ws/video
+    faceLookupUrl: http://10.0.0.1:8000/face/latest
+    requestTimeoutSeconds: 3
+    tieBreakStrategy: most_recent
+  sharedBackendConfigComponent: {fileID: 912688757}
   verboseLogs: 1
+--- !u!114 &912688756
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 912688753}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4659f10a365a8ea449eaeeccbe7345cc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FaceVideoStreamSender
+  enableStreaming: 1
+  videoTransport: 0
+  sharedConnectionManager: {fileID: 912688755}
+  faceDetector: {fileID: 94743640}
+  imageStream: {fileID: 2046283835}
+  serverHost: 192.168.4.29
+  serverPort: 8001
+  wsPath: /ws/video
+  sendFps: 10
+  jpegQuality: 100
+  targetWidth: -1
+  targetHeight: -1
+  reconnectDelaySeconds: 3
+  verboseLogs: 1
+--- !u!114 &912688757
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 912688753}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f85144c5080f5948bf5e00f26951400, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BackendConnectionConfig
+  serverHost: 192.168.141.124
+  serverPort: 8001
+  useTls: 0
+  videoWsPath: /ws/video
+  faceLookupPath: /face/latest
 --- !u!1 &917313730
 GameObject:
   m_ObjectHideFlags: 0
@@ -576,7 +706,7 @@ MonoBehaviour:
   useDefaultConfig: 1
   defaultCueResourcePath: Cue Defaults/default_cue
   perPersonCuePathFormat: Cue Defaults/{0}/default_cue_{0}
-  backendBaseUrl: http://10.0.0.1:5000
+  backendBaseUrl: http://192.168.4.29:8001
   cueEndpoint: /cue
   pollIntervalSeconds: 3
   cueTarget: {fileID: 0}
@@ -590,7 +720,7 @@ MonoBehaviour:
   overrideAudioFromInspector: 0
   cueAudioOverride: {fileID: 8300000, guid: 19a68d7770fdff842a5e3d4b426dc0ee, type: 3}
   lateralSide: 0
-  lateralDistance: 0.38
+  lateralDistance: 0.35
   verticalOffset: 0.05
   fallbackDistanceFromViewer: 0.9
   minimumDistanceFromViewer: 0.4
@@ -598,7 +728,7 @@ MonoBehaviour:
   moveThresholdDist: 0.15
   fadeDuration: 0.45
   panelSize: {x: 0.34, y: 0.3}
-  panelColor: {r: 0.11698109, g: 0.11698109, b: 0.11698109, a: 0.2}
+  panelColor: {r: 0.11698109, g: 0.11698109, b: 0.11698109, a: 0.26666668}
   textColor: {r: 1, g: 1, b: 1, a: 0.8392157}
   lineColor: {r: 0.2528302, g: 0.2528302, b: 0.2528302, a: 0.2901961}
   lineWidth: 0.004
@@ -964,6 +1094,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: GazeVisualizer
       objectReference: {fileID: 0}
+    - target: {fileID: 6470841429240247560, guid: 96d35ce26849f5340ab5ac09b47d1ed9,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 7356284445674072768, guid: 96d35ce26849f5340ab5ac09b47d1ed9,
         type: 3}
       propertyPath: trackingPoint
@@ -1155,7 +1290,7 @@ PrefabInstance:
     - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}
       propertyPath: holdDuration
-      value: 1
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}
@@ -1177,6 +1312,11 @@ PrefabInstance:
       propertyPath: proxyDefaultMaterial
       value: 
       objectReference: {fileID: 2100000, guid: 1792ce7e07459496399d34cab0f6a8a9, type: 2}
+    - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
+        type: 3}
+      propertyPath: visualizeFaceProxies
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}
       propertyPath: proxyHighlightMaterial
@@ -1420,6 +1560,11 @@ PrefabInstance:
       propertyPath: cameraSource
       value: 
       objectReference: {fileID: 2046283835}
+    - target: {fileID: 3381340449592359223, guid: 940e8938a4f4d8f478b92c7dc4708ed6,
+        type: 3}
+      propertyPath: scoreThreshold
+      value: 0.5
+      objectReference: {fileID: 0}
     - target: {fileID: 3708914769917962132, guid: 940e8938a4f4d8f478b92c7dc4708ed6,
         type: 3}
       propertyPath: m_Name
@@ -1490,3 +1635,4 @@ SceneRoots:
   - {fileID: 1930843177}
   - {fileID: 1625799299}
   - {fileID: 1795750981}
+  - {fileID: 39253057}

@@ -18,6 +18,8 @@ public class BlazeFaceDetector : MonoBehaviour
     [Header("Camera Source")]
     [SerializeField] private ImageStream cameraSource;
 
+    public ImageStream CameraSource => cameraSource;
+
     [Header("Detection Settings")]
     public float scoreThreshold = 0.5f;
     public float iouThreshold = 0.3f;

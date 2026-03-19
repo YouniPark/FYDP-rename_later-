@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <application>
     <!--Used when Application Entry is set to Activity, otherwise remove this activity block-->
@@ -27,4 +27,5 @@
   <uses-permission android:name="com.magicleap.permission.SPATIAL_ANCHOR" />
   <uses-permission android:name="com.magicleap.permission.SPACE_MANAGER" />
   <uses-permission android:name="com.magicleap.permission.MARKER_TRACKING" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

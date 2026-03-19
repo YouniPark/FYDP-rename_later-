@@ -16,6 +16,10 @@ public class FaceProxyProjector : MonoBehaviour
     [Tooltip("Optional explicit head/camera transform for pose debugging. If null, Camera.main is used.")]
     [SerializeField] private Transform debugHeadTransform;
 
+    [Header("Proxy Visibility")]
+    [Tooltip("Toggle to show/hide the face proxy objects. To be disabled with main version.")]
+    [SerializeField] private bool visualizeFaceProxies = true;
+
     [Header("Proxy Limits")]
     [SerializeField, Min(1)] private int maxActiveProxies = 5;
     [SerializeField, Min(0f)] private float holdDuration = 0.35f;
@@ -53,6 +57,7 @@ public class FaceProxyProjector : MonoBehaviour
     {
         public Transform transform;
         public LineRenderer rayRenderer;
+        public Renderer[] proxyRenderers;
         public Vector3 targetPosition;
         public Vector3 rayOrigin;
         public Vector3 velocity;
@@ -129,6 +134,8 @@ public class FaceProxyProjector : MonoBehaviour
             {
                 slot.transform.gameObject.SetActive(true);
             }
+
+            SetRenderersEnabled(slot.proxyRenderers, visualizeFaceProxies);
 
             if (smoothingTime > 0f)
             {
@@ -251,6 +258,7 @@ public class FaceProxyProjector : MonoBehaviour
 
             slot.hasTarget = true;
             slot.transform.gameObject.SetActive(true);
+            SetRenderersEnabled(slot.proxyRenderers, visualizeFaceProxies);
             if (slot.rayRenderer != null)
             {
                 slot.rayRenderer.enabled = visualizeRays;
@@ -276,6 +284,7 @@ public class FaceProxyProjector : MonoBehaviour
             {
                 transform = instance.transform,
                 rayRenderer = CreateRayRenderer(instance.transform),
+                proxyRenderers = instance.GetComponentsInChildren<Renderer>(true),
                 targetPosition = instance.transform.position,
                 rayOrigin = instance.transform.position,
                 velocity = Vector3.zero,
@@ -314,6 +323,22 @@ public class FaceProxyProjector : MonoBehaviour
         ApplyRayRendererSettings(lineRenderer);
 
         return lineRenderer;
+    }
+
+    private static void SetRenderersEnabled(Renderer[] renderers, bool enabled)
+    {
+        if (renderers == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+            {
+                renderers[i].enabled = enabled;
+            }
+        }
     }
 
     private void ApplyRayRendererSettings(LineRenderer lineRenderer)

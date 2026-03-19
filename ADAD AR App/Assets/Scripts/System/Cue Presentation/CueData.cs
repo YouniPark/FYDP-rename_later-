@@ -26,7 +26,7 @@ public class CueData
     public int   people_id        = -1;
     public int   font_size_px     = 48;
     public float image_scale      = 1.0f;
-    public float duration_seconds = 90f;
+    public float duration_seconds = 60f;
 
     public CueDetails cues;
 

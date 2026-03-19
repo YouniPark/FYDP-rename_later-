@@ -1,8 +1,8 @@
 {
     "people_id": 2,
     "font_size_px": 48,
-    "image_scale": 2.4,
-    "duration_seconds": 30,
+    "image_scale": 0.8,
+    "duration_seconds": 10,
     "cues": {
         "name": "Hailey",
         "relationship": "Friend",

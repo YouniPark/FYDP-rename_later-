@@ -99,8 +99,13 @@ public class CueDisplay : MonoBehaviour
     private float        _proxyScanTimer;
     private float        _debugLogTimer;
     private int          _runtimeFontSize = 48;
+    private float        _runtimeImageScale = 1f;
     private bool         _missingRootLogged;
     private bool         _hasLastKnownTargetPoint;
+    private readonly Vector3[] _panelCorners = new Vector3[4];
+    private Transform    _cachedTargetForComponents;
+    private Renderer     _cachedTargetRenderer;
+    private Collider     _cachedTargetCollider;
     private const float  ProxyScanInterval = 0.5f;
     private const float  DebugLogInterval = 0.5f;
 
@@ -129,6 +134,7 @@ public class CueDisplay : MonoBehaviour
         CueData testData = new CueData
         {
             font_size_px     = 48,
+            image_scale      = 1f,
             duration_seconds = durationSeconds,
             cues             = new CueData.CueDetails { name = personName, relationship = relationship }
         };
@@ -217,7 +223,7 @@ public class CueDisplay : MonoBehaviour
     public void Initialize(CueData data, Transform headTarget, Sprite photo = null, AudioClip audio = null)
     {
         enabled = true;
-        _headTarget  = IsValidTarget(headTarget, requireActive: false) ? headTarget : null;
+        SetHeadTarget(IsValidTarget(headTarget, requireActive: false) ? headTarget : null);
         target       = _headTarget;
         _viewCamera  = Camera.main;
         _lastKnownTargetPoint = _headTarget != null ? _headTarget.position : Vector3.zero;
@@ -230,13 +236,15 @@ public class CueDisplay : MonoBehaviour
         cueAudio         = audio;
 
         int fontSizePx = (data != null && data.font_size_px > 0) ? data.font_size_px : 48;
+        float imageScale = (data != null && data.image_scale > 0f) ? data.image_scale : 1f;
         _runtimeFontSize = fontSizePx;
+        _runtimeImageScale = imageScale;
 
         // Reset scan timer so first scan happens quickly after spawn
         _proxyScanTimer = 0.1f;
         _debugLogTimer = 0f;
 
-        BuildCueCard(fontSizePx);
+        BuildCueCard(fontSizePx, imageScale);
         BuildConnectorLine();
         EnsureCardRoot();
         SnapToInitialPosition();
@@ -266,7 +274,7 @@ public class CueDisplay : MonoBehaviour
 
     // ── Card construction ───────────────────────────────────────────────────────
 
-    private void BuildCueCard(int fontSizePx)
+    private void BuildCueCard(int fontSizePx, float imageScale)
     {
         // Create a fresh child GameObject as the WorldSpace Canvas root.
         // Parenting it here ensures Destroy(gameObject) cleans up the canvas too.
@@ -288,61 +296,149 @@ public class CueDisplay : MonoBehaviour
         scaler.dynamicPixelsPerUnit = 1000f;   // higher DPU = sharper TMP text
         root.AddComponent<GraphicRaycaster>();
 
-        // Panel background
-        GameObject panelGO = new GameObject("Panel", typeof(RectTransform), typeof(Image));
-        panelGO.transform.SetParent(root.transform, false);
-        _panelRect             = panelGO.GetComponent<RectTransform>();
-        _panelRect.sizeDelta   = panelSize * 1000f; // canvas-units; ×0.001 scale → metres in world
+        RectTransform rootRect = root.GetComponent<RectTransform>();
 
-        panelGO.GetComponent<Image>().color = panelColor;
+        string safeRelationship = string.IsNullOrWhiteSpace(relationship)
+            ? "person"
+            : relationship.ToLower();
+        string infoText = $"This is your {safeRelationship},\n{personName}.";
 
-        // Text — top half
-        GameObject textGO = new GameObject("InfoText", typeof(RectTransform));
-        textGO.transform.SetParent(panelGO.transform, false);
-        var textRect       = textGO.GetComponent<RectTransform>();
-        textRect.anchorMin = new Vector2(0f, 0.5f);
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(20f,  10f);
-        textRect.offsetMax = new Vector2(-20f, -10f);
+        float horizontalPadding = Mathf.Max(20f, fontSizePx * 0.5f);
+        float topPadding = Mathf.Max(14f, fontSizePx * 0.35f);
+        float bottomPadding = Mathf.Max(14f, fontSizePx * 0.35f);
+        float sectionGap = Mathf.Max(10f, fontSizePx * 0.25f);
+        float textMaxWidth = Mathf.Clamp(fontSizePx * 14f, 360f, 980f);
 
-        string infoText = $"This is your {relationship.ToLower()}, {personName}.";
-        // string infoText = $"This is your {relationship.ToLower()}, {personName}.";
-        // On some device builds, TMP settings may be missing and AddComponent<TextMeshProUGUI>() throws.
-        // Fall back to UnityEngine.UI.Text so cue spawning continues.
+        float textPreferredWidth;
+        float textPreferredHeight;
+        bool usedTmp = false;
+
+        // Measure text size before creating the visible panel so canvas bounds are data-driven.
+        GameObject measureGO = new GameObject("TextMeasure", typeof(RectTransform));
+        measureGO.transform.SetParent(root.transform, false);
+        RectTransform measureRect = measureGO.GetComponent<RectTransform>();
+        measureRect.sizeDelta = new Vector2(textMaxWidth, 2000f);
+
         try
         {
-            var tmp = textGO.AddComponent<TextMeshProUGUI>();
-            tmp.text      = infoText;
-            tmp.fontSize  = fontSizePx * 0.875f; // nominal px → TMP units
-            tmp.color     = textColor;
-            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            var measureTmp = measureGO.AddComponent<TextMeshProUGUI>();
+            measureTmp.text = infoText;
+            measureTmp.fontSize = fontSizePx;
+            measureTmp.textWrappingMode = TextWrappingModes.Normal;
+            measureTmp.overflowMode = TextOverflowModes.Overflow;
+            measureTmp.alignment = TextAlignmentOptions.TopLeft;
+            Vector2 preferred = measureTmp.GetPreferredValues(infoText, textMaxWidth, 0f);
+            textPreferredWidth = preferred.x;
+            textPreferredHeight = preferred.y;
+            usedTmp = true;
         }
         catch (System.Exception ex)
         {
             Debug.LogWarning($"[CueDisplay] TMP unavailable at runtime; using UI.Text fallback. {ex.Message}");
+            var measureText = measureGO.AddComponent<Text>();
+            measureText.text = infoText;
+            measureText.fontSize = fontSizePx;
+            measureText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            measureText.alignment = TextAnchor.UpperLeft;
+            measureText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            measureText.verticalOverflow = VerticalWrapMode.Overflow;
+            textPreferredWidth = Mathf.Min(textMaxWidth, Mathf.Max(fontSizePx * 5f, measureText.preferredWidth));
+            textPreferredHeight = Mathf.Max(fontSizePx * 1.2f, measureText.preferredHeight);
+        }
+
+        Destroy(measureGO);
+
+        float minTextWidth = fontSizePx * 6f;
+        float textWidth = Mathf.Clamp(textPreferredWidth, minTextWidth, textMaxWidth);
+        float textHeight = Mathf.Max(fontSizePx * 1.3f, textPreferredHeight);
+
+        float panelWidth = textWidth + (horizontalPadding * 2f);
+
+        bool hasImage = cuePhoto != null;
+        float imageHeight = 0f;
+        float imageWidth = 0f;
+        if (hasImage)
+        {
+            float imagePadding = Mathf.Max(10f, fontSizePx * 0.3f);
+            float safeImageScale = Mathf.Max(0.1f, imageScale);
+            imageWidth = Mathf.Max(80f, panelWidth - (imagePadding * 2f));
+            float imageAspect = cuePhoto.rect.height > 0f ? cuePhoto.rect.width / cuePhoto.rect.height : 1f;
+            imageHeight = (imageWidth / Mathf.Max(0.1f, imageAspect)) * safeImageScale;
+            imageHeight = Mathf.Max(fontSizePx * 1.5f, imageHeight);
+        }
+
+        float panelHeight = topPadding + textHeight + bottomPadding;
+        if (hasImage)
+        {
+            panelHeight += sectionGap + imageHeight;
+        }
+
+        // Panel background
+        GameObject panelGO = new GameObject("Panel", typeof(RectTransform), typeof(Image));
+        panelGO.transform.SetParent(root.transform, false);
+        _panelRect             = panelGO.GetComponent<RectTransform>();
+        _panelRect.anchorMin   = new Vector2(0.5f, 0.5f);
+        _panelRect.anchorMax   = new Vector2(0.5f, 0.5f);
+        _panelRect.pivot       = new Vector2(0.5f, 0.5f);
+        _panelRect.anchoredPosition = Vector2.zero;
+        _panelRect.sizeDelta   = new Vector2(panelWidth, panelHeight);
+
+        rootRect.anchorMin = new Vector2(0.5f, 0.5f);
+        rootRect.anchorMax = new Vector2(0.5f, 0.5f);
+        rootRect.pivot = new Vector2(0.5f, 0.5f);
+        rootRect.sizeDelta = _panelRect.sizeDelta;
+
+        panelGO.GetComponent<Image>().color = panelColor;
+
+        // Text block sized from font_size_px and measured preferred text bounds.
+        GameObject textGO = new GameObject("InfoText", typeof(RectTransform));
+        textGO.transform.SetParent(panelGO.transform, false);
+        var textRect       = textGO.GetComponent<RectTransform>();
+        textRect.anchorMin = new Vector2(0.5f, 1f);
+        textRect.anchorMax = new Vector2(0.5f, 1f);
+        textRect.pivot = new Vector2(0.5f, 1f);
+        textRect.sizeDelta = new Vector2(textWidth, textHeight);
+        textRect.anchoredPosition = new Vector2(0f, -topPadding);
+
+        if (usedTmp)
+        {
+            var tmp = textGO.AddComponent<TextMeshProUGUI>();
+            tmp.text      = infoText;
+            tmp.fontSize  = fontSizePx;
+            tmp.color     = textColor;
+            tmp.textWrappingMode = TextWrappingModes.Normal;
+            tmp.overflowMode = TextOverflowModes.Overflow;
+            tmp.alignment = TextAlignmentOptions.TopLeft;
+        }
+        else
+        {
             var uiText = textGO.AddComponent<Text>();
             uiText.text = infoText;
-            uiText.fontSize = Mathf.RoundToInt(fontSizePx * 0.5f);
+            uiText.fontSize = fontSizePx;
             uiText.color = textColor;
-            uiText.alignment = TextAnchor.MiddleLeft;
+            uiText.alignment = TextAnchor.UpperLeft;
             uiText.horizontalOverflow = HorizontalWrapMode.Wrap;
             uiText.verticalOverflow = VerticalWrapMode.Overflow;
             uiText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
-        // Photo — bottom half
-        GameObject photoGO = new GameObject("Photo", typeof(RectTransform), typeof(Image));
-        photoGO.transform.SetParent(panelGO.transform, false);
-        var photoRect       = photoGO.GetComponent<RectTransform>();
-        photoRect.anchorMin = Vector2.zero;
-        photoRect.anchorMax = new Vector2(1f, 0.5f);
-        photoRect.offsetMin = Vector2.zero;
-        photoRect.offsetMax = Vector2.zero;
+        // Only add an image section when cue data provides an image.
+        if (hasImage)
+        {
+            GameObject photoGO = new GameObject("Photo", typeof(RectTransform), typeof(Image));
+            photoGO.transform.SetParent(panelGO.transform, false);
+            var photoRect = photoGO.GetComponent<RectTransform>();
+            photoRect.anchorMin = new Vector2(0.5f, 1f);
+            photoRect.anchorMax = new Vector2(0.5f, 1f);
+            photoRect.pivot = new Vector2(0.5f, 1f);
+            photoRect.sizeDelta = new Vector2(imageWidth, imageHeight);
+            photoRect.anchoredPosition = new Vector2(0f, -(topPadding + textHeight + sectionGap));
 
-        var photoImage           = photoGO.GetComponent<Image>();
-        photoImage.sprite        = cuePhoto;
-        photoImage.preserveAspect = true;
-        photoImage.color         = cuePhoto == null ? new Color(0.85f, 0.85f, 0.85f, 1f) : Color.white;
+            var photoImage = photoGO.GetComponent<Image>();
+            photoImage.sprite = cuePhoto;
+            photoImage.preserveAspect = true;
+            photoImage.color = Color.white;
+        }
     }
 
     private void BuildConnectorLine()
@@ -382,10 +478,9 @@ public class CueDisplay : MonoBehaviour
         Vector3 targetPoint = ComputeTargetConnectionPoint();
 
         // Get exact side midpoint from world corners for stable connector anchoring.
-        Vector3[] corners = new Vector3[4];
-        _panelRect.GetWorldCorners(corners);
-        Vector3 leftMid = 0.5f * (corners[0] + corners[1]);
-        Vector3 rightMid = 0.5f * (corners[2] + corners[3]);
+        _panelRect.GetWorldCorners(_panelCorners);
+        Vector3 leftMid = 0.5f * (_panelCorners[0] + _panelCorners[1]);
+        Vector3 rightMid = 0.5f * (_panelCorners[2] + _panelCorners[3]);
         Vector3 panelEdge = lateralSide == CueLateralSide.Right ? leftMid : rightMid;
 
         _line.SetPosition(0, panelEdge);
@@ -545,7 +640,7 @@ public class CueDisplay : MonoBehaviour
             return;
         }
 
-        _headTarget = best;
+        SetHeadTarget(best);
         if (verboseDebug)
             Debug.Log($"[CueDisplay] Adopted proxy '{_headTarget.name}' @ {_headTarget.position:F3} via scan.");
     }
@@ -568,7 +663,40 @@ public class CueDisplay : MonoBehaviour
 
     private bool HasLiveTarget()
     {
-        return IsValidTarget(_headTarget, requireActive: true);
+        if (_headTarget == null) return false;
+        if (!_headTarget.gameObject.activeInHierarchy) return false;
+        if (!string.IsNullOrEmpty(blockedTargetName) && _headTarget.name == blockedTargetName) return false;
+
+        if (rejectOriginTargets && _headTarget.position.sqrMagnitude <= originRejectRadius * originRejectRadius)
+            return false;
+
+        return true;
+    }
+
+    private void SetHeadTarget(Transform headTarget)
+    {
+        _headTarget = headTarget;
+        _cachedTargetForComponents = null;
+        _cachedTargetRenderer = null;
+        _cachedTargetCollider = null;
+    }
+
+    private void RefreshTargetComponentCache()
+    {
+        if (_headTarget == null)
+        {
+            _cachedTargetForComponents = null;
+            _cachedTargetRenderer = null;
+            _cachedTargetCollider = null;
+            return;
+        }
+
+        if (_cachedTargetForComponents == _headTarget)
+            return;
+
+        _cachedTargetForComponents = _headTarget;
+        _cachedTargetRenderer = _headTarget.GetComponentInChildren<Renderer>();
+        _cachedTargetCollider = _headTarget.GetComponentInChildren<Collider>();
     }
 
     public bool DebugIsInitialized()
@@ -629,7 +757,7 @@ public class CueDisplay : MonoBehaviour
         }
 
         // Rebuild once if root is unexpectedly missing.
-        BuildCueCard(_runtimeFontSize > 0 ? _runtimeFontSize : 48);
+        BuildCueCard(_runtimeFontSize > 0 ? _runtimeFontSize : 48, _runtimeImageScale > 0f ? _runtimeImageScale : 1f);
         BuildConnectorLine();
         SnapToInitialPosition();
 
@@ -746,6 +874,8 @@ public class CueDisplay : MonoBehaviour
             return _hasLastKnownTargetPoint ? _lastKnownTargetPoint : (_cardRoot != null ? _cardRoot.position : transform.position);
         }
 
+        RefreshTargetComponentCache();
+
         Transform viewer = ResolveViewerTransform();
         if (viewer == null)
         {
@@ -758,14 +888,14 @@ public class CueDisplay : MonoBehaviour
         Vector3 sideDir = lateralSide == CueLateralSide.Right ? viewerRight : -viewerRight;
 
         float sideExtent = 0.04f;
-        Renderer r = _headTarget.GetComponentInChildren<Renderer>();
+        Renderer r = _cachedTargetRenderer;
         if (r != null)
         {
             Vector3 e = r.bounds.extents;
             sideExtent = Mathf.Max(sideExtent, Mathf.Abs(sideDir.x) * e.x * 0.5f + Mathf.Abs(sideDir.y) * e.y * 0.5f + Mathf.Abs(sideDir.z) * e.z * 0.5f);
         }
 
-        Collider c = _headTarget.GetComponentInChildren<Collider>();
+        Collider c = _cachedTargetCollider;
         if (c != null)
         {
             Vector3 e = c.bounds.extents;

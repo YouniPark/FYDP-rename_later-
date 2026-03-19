@@ -1,8 +1,8 @@
 {
     "people_id": 1,
     "font_size_px": 48,
-    "image_scale": 2.2,
-    "duration_seconds": 30,
+    "image_scale": 1,
+    "duration_seconds": 10,
     "cues": {
         "name": "Daniel",
         "relationship": "Classmate",
