@@ -62,12 +62,30 @@ def _create_epoch_wrapper(stream: Any, event_lsl_timestamp: float) -> Any:
 async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_timestamp: float) -> dict[str, Any]:
     stream = await state.get_eeg_stream()
     if stream is None:
-        return {
-            "event_id": event_id,
-            "event_lsl_timestamp": event_lsl_timestamp,
-            "status": "error",
-            "reason": "eeg_stream_not_connected",
-        }
+        if state.settings.unfamiliar_if_no_eeg:
+            logger.info(
+                "EEG stream not connected for event %s; treating as unfamiliar",
+                event_id,
+            )
+            result = {
+                "event_id": event_id,
+                "event_lsl_timestamp": event_lsl_timestamp,
+                "status": "ok",
+                "is_unfamiliar": True,
+                "reason": "eeg_stream_not_connected",
+            }
+        else:
+            logger.info(
+                "EEG stream not connected for event %s; ignoring event",
+                event_id,
+            )
+            result = {
+                "event_id": event_id,
+                "event_lsl_timestamp": event_lsl_timestamp,
+                "status": "no_eeg",
+            }
+        state.latest_eeg_result[event_id] = result
+        return result
 
     try:
         should_process = await asyncio.to_thread(event_filter, event_lsl_timestamp)

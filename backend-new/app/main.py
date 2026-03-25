@@ -11,6 +11,7 @@ from app.config import settings
 from app.cue_service import build_cue_decision
 from app.eeg_pipeline import eeg_connect_loop, run_eeg_event_pipeline
 from app.face_pipeline import enqueue_frame, face_recognition_loop
+from app.event_inlet_pipeline import event_inlet_loop
 from app.state import AppState
 from app.storage.models import CueDBManifest, EventIn, FaceDBManifest, VideoFrameMessage
 
@@ -56,14 +57,33 @@ hub = WebSocketHub()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    async def dispatch_fixation(event_id: str, lsl_timestamp: float, _proxy_name: str) -> None:
+        """Dispatch a fixation event received from LSL through the EEG pipeline."""
+        result = await run_eeg_event_pipeline(state, event_id, lsl_timestamp)
+        if result.get("status") != "ok":
+            logger.info(
+                "Event %s not processed (status=%s)",
+                event_id, result.get("status"),
+            )
+            return
+        decision = await build_cue_decision(
+            state,
+            event_id=event_id,
+            event_lsl_timestamp=lsl_timestamp,
+            is_unfamiliar=result["is_unfamiliar"],
+        )
+        await hub.broadcast_json({"type": "cue_decision", "payload": decision.model_dump(mode="json")})
+
     eeg_task = asyncio.create_task(eeg_connect_loop(state))
     face_task = asyncio.create_task(face_recognition_loop(state))
+    event_lsl_task = asyncio.create_task(event_inlet_loop(state, dispatch_fixation))
     try:
         yield
     finally:
         eeg_task.cancel()
         face_task.cancel()
-        await asyncio.gather(eeg_task, face_task, return_exceptions=True)
+        event_lsl_task.cancel()
+        await asyncio.gather(eeg_task, face_task, event_lsl_task, return_exceptions=True)
 
 
 app = FastAPI(title="ADAD Python Backend Server", lifespan=lifespan)

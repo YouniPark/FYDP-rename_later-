@@ -1,3 +1,4 @@
+using LSL;
 using MagicLeap.OpenXR.Features.EyeTracker;
 using UnityEngine;
 
@@ -36,6 +37,9 @@ public class FaceProxyGazeInteractor : MonoBehaviour
     [Tooltip("When true, proxy highlight starts only after first fixation event in a collision window. When false, highlight starts on collision.")]
     [SerializeField] private bool highlightOnFixation = true;
 
+    // LSL outlet for fixation event markers
+    private StreamOutlet _lslOutlet;
+
     // The proxy collider currently under gaze (null if gaze hits nothing)
     private FaceProxyGazeTarget _currentTarget;
 
@@ -51,6 +55,18 @@ public class FaceProxyGazeInteractor : MonoBehaviour
         {
             gazeProvider = FindFirstObjectByType<EyeGazeRayProvider>();
         }
+
+        // Create the LSL outlet for fixation event markers.
+        // One string channel, irregular rate — each push is a single marker.
+        var streamInfo = new StreamInfo(
+            name: "FixationEvents",
+            type: "Markers",
+            channel_count: 1,
+            nominal_srate: LSL.LSL.IRREGULAR_RATE,
+            channel_format: channel_format_t.cf_string,
+            source_id: "FaceProxyGazeInteractor"
+        );
+        _lslOutlet = new StreamOutlet(streamInfo);
     }
 
     private void Update()
@@ -135,6 +151,10 @@ public class FaceProxyGazeInteractor : MonoBehaviour
         {
             Debug.Log($"[FaceProxyGazeInteractor] FIXATION EVENT: First fixation detected while gaze is colliding with a face proxy (current={_currentTarget.name}).");
             _fixationLoggedForCollision = true;
+
+            // Push an LSL event marker containing the face proxy's name.
+            _lslOutlet?.push_sample(new string[] { _currentTarget.name });
+
             OnFixationEvent?.Invoke(_currentTarget);
 
             if (_currentTarget != null && highlightOnFixation)
@@ -156,6 +176,12 @@ public class FaceProxyGazeInteractor : MonoBehaviour
     public void SetGazeProvider(EyeGazeRayProvider provider)
     {
         gazeProvider = provider;
+    }
+
+    private void OnDestroy()
+    {
+        _lslOutlet?.Dispose();
+        _lslOutlet = null;
     }
 
     private void OnDisable()

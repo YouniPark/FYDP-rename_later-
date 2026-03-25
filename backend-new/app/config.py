@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     # EEG Config
     # ------------------------------------------------------------------
 
-    eeg_lsl_retry_seconds: int = Field(default=3, alias="EEG_LSL_RETRY_SECONDS")
+    eeg_lsl_retry_seconds: int = Field(default=4, alias="EEG_LSL_RETRY_SECONDS")
 
     # Bandpass filter bounds (Hz)
     eeg_l_freq: float = Field(default=1.0, alias="EEG_L_FREQ")
@@ -122,6 +122,23 @@ class Settings(BaseSettings):
     # Path to the trained SVM model and fitted scaler (.joblib files)
     eeg_model_path: str = Field(default="./data/models/erp_svm_model.joblib", alias="EEG_MODEL_PATH")
     eeg_scaler_path: str = Field(default="./data/models/erp_feature_scaler.joblib", alias="EEG_SCALER_PATH")
+
+    # ------------------------------------------------------------------
+    # LSL Fixation Inlet
+    # ------------------------------------------------------------------
+
+    # Name of the LSL stream created by FaceProxyGazeInteractor in Unity
+    lsl_fixation_stream_name: str = Field(default="FixationEvents", alias="LSL_FIXATION_STREAM_NAME")
+    # How long (seconds) to wait when resolving the stream on the network
+    lsl_fixation_resolve_timeout: float = Field(default=5.0, alias="LSL_FIXATION_RESOLVE_TIMEOUT")
+    # Polling interval (seconds) between non-blocking pull_sample calls
+    lsl_fixation_poll_interval: float = Field(default=0.1, alias="LSL_FIXATION_POLL_INTERVAL")
+    # How long to wait before retrying after a connection failure or stream loss
+    lsl_fixation_retry_seconds: float = Field(default=5.0, alias="LSL_FIXATION_RETRY_SECONDS")
+
+    # If True, events are processed as "unfamiliar" when the EEG stream is not connected.
+    # If False, events are silently dropped until the EEG stream becomes available.
+    unfamiliar_if_no_eeg: bool = Field(default=True, alias="UNFAMILIAR_IF_NO_EEG")
 
 
 settings = Settings()
