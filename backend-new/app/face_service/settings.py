@@ -59,11 +59,11 @@ class FaceServiceSettings(BaseSettings):
         alias="FACE_DETECTOR_CAFFEMODEL",
     )
     detector_prototxt_fallback_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3] / "poc" / "deploy.prototxt",
+        default_factory=lambda: Path(__file__).resolve().parents[3] / "models" / "deploy.prototxt",
         alias="FACE_DETECTOR_PROTOTXT_FALLBACK",
     )
     detector_caffemodel_fallback_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3] / "poc" / "res10_300x300_ssd.caffemodel",
+        default_factory=lambda: Path(__file__).resolve().parents[3] / "models" / "res10_300x300_ssd.caffemodel",
         alias="FACE_DETECTOR_CAFFEMODEL_FALLBACK",
     )
 
