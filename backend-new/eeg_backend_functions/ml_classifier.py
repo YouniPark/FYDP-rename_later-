@@ -1,7 +1,7 @@
 """
 ML Classifier: predict familiarity from a 1D feature vector.
 
-Your Classifier_Training.ipynb scales features with StandardScaler and then
+The classifier notebook scales features with StandardScaler and then
 trains classifiers (SVM/LogReg/RF). That notebook doesn't persist models,
 so this function supports either:
 - passing in a (scaler, model) pair already loaded in memory, or

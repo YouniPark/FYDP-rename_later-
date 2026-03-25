@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from app.state import AppState
+from eeg_backend_functions.eeg_processing import EpochRejectedError
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +74,46 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             return result
 
         epoch = await asyncio.to_thread(_create_epoch_wrapper, stream, event_lsl_timestamp)
-        features = await asyncio.to_thread(eeg_processing, epoch)
-        is_unfamiliar = await asyncio.to_thread(ml_classifier, features)
+        features = await asyncio.to_thread(
+            eeg_processing,
+            epoch,
+            l_freq=state.settings.eeg_l_freq,
+            h_freq=state.settings.eeg_h_freq,
+            notch_freqs=state.settings.eeg_notch_freqs,
+            ica_path=state.settings.eeg_ica_path,
+            apply_rest=state.settings.eeg_apply_rest,
+            forward_path=state.settings.eeg_forward_path,
+            baseline_window=(state.settings.eeg_baseline_tmin, state.settings.eeg_baseline_tmax),
+            amp_thresh=state.settings.eeg_amp_thresh_uv * 1e-6,
+        )
+        is_unfamiliar = await asyncio.to_thread(
+            ml_classifier,
+            features,
+            model_path=state.settings.eeg_model_path,
+            scaler_path=state.settings.eeg_scaler_path,
+        )
         result = {
             "event_id": event_id,
             "event_lsl_timestamp": event_lsl_timestamp,
             "status": "ok",
             "is_unfamiliar": bool(is_unfamiliar),
+        }
+        state.latest_eeg_result[event_id] = result
+        return result
+    except EpochRejectedError as exc:
+        # Artifact-driven rejection: treat as unfamiliar but log separately for analysis
+        logger.warning(
+            "Epoch rejected for event %s (artifact): %s",
+            event_id,
+            exc,
+            extra={"event_id": event_id, "bad_channels": exc.bad_channels},
+        )
+        result = {
+            "event_id": event_id,
+            "event_lsl_timestamp": event_lsl_timestamp,
+            "status": "rejected",
+            "is_unfamiliar": True,
+            "bad_channels": exc.bad_channels,
         }
         state.latest_eeg_result[event_id] = result
         return result
