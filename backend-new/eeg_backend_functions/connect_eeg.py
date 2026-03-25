@@ -21,11 +21,14 @@ from __future__ import annotations
 
 import os
 import time
+import logging
 from dataclasses import dataclass, field
 from collections import deque
 from typing import Optional, Tuple, List
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Map any device-specific channel labels to your preferred names.
 # If you don't need this, leave it empty.
@@ -127,7 +130,7 @@ class EEGStreamContext:
         return data, ts[idx]
 
 
-def connect_eeg() -> EEGStreamContext:
+def connect_eeg() -> Optional[EEGStreamContext]:
     """
     Connect EEG (replacing Explore py function).
 
@@ -148,7 +151,9 @@ def connect_eeg() -> EEGStreamContext:
     if not streams:
         streams = resolve_byprop("type", stream_type, timeout=timeout)
     if not streams:
-        raise RuntimeError("No EEG LSL stream found")
+        logger.warning("No EEG LSL stream found")
+        _STREAM = None
+        return None
 
     inlet = StreamInlet(streams[0], max_buflen=60, max_chunklen=32)
     info = inlet.info()

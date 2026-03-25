@@ -14,7 +14,6 @@ try:
     from user_modules.eeg import connect_eeg, create_epoch, eeg_processing, event_filter
     from user_modules.model import ml_classifier
 except ImportError:
-    # TO DO: implement import from user EEG/ML modules
     def connect_eeg() -> Any:
         raise NotImplementedError("TO DO: implement connect_eeg import from user modules")
 
@@ -35,6 +34,11 @@ async def eeg_connect_loop(state: AppState) -> None:
     while True:
         try:
             stream = await asyncio.to_thread(connect_eeg)
+            if stream is None:
+                await state.set_eeg_stream(None)
+                logger.info("EEG LSL stream not found; retrying")
+                await asyncio.sleep(state.settings.eeg_lsl_retry_seconds)
+                continue
             await state.set_eeg_stream(stream)
             logger.info("EEG LSL connected")
             await asyncio.sleep(state.settings.eeg_lsl_retry_seconds)
@@ -46,7 +50,11 @@ async def eeg_connect_loop(state: AppState) -> None:
 
 def _create_epoch_wrapper(stream: Any, event_lsl_timestamp: float) -> Any:
     sig = inspect.signature(create_epoch)
-    if len(sig.parameters) == 1:
+    positional_count = sum(
+        parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        for parameter in sig.parameters.values()
+    )
+    if positional_count <= 1:
         return create_epoch(event_lsl_timestamp)
     return create_epoch(stream, event_lsl_timestamp)
 
