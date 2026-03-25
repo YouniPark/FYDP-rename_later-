@@ -85,6 +85,10 @@ public class CueDisplay : MonoBehaviour
     public Color   lineColor  = Color.white;
     [Range(0.001f, 0.02f)] public float lineWidth = 0.004f;
 
+    [Header("Unknown Person")]
+    [Tooltip("Message shown when the recognised person has people_id == 0 (unknown/stranger).")]
+    [SerializeField] private string unknownPersonMessage = "This person isn't in your database.\nThey may be a stranger.";    
+
     // ── Runtime state ───────────────────────────────────────────────────────────
     private Transform    _headTarget;
     private Transform    _cardRoot;   // WorldSpace Canvas root (child of this)
@@ -106,6 +110,7 @@ public class CueDisplay : MonoBehaviour
     private Transform    _cachedTargetForComponents;
     private Renderer     _cachedTargetRenderer;
     private Collider     _cachedTargetCollider;
+    private bool         _isUnknownPerson;
     private const float  ProxyScanInterval = 0.5f;
     private const float  DebugLogInterval = 0.5f;
 
@@ -229,6 +234,7 @@ public class CueDisplay : MonoBehaviour
         _lastKnownTargetPoint = _headTarget != null ? _headTarget.position : Vector3.zero;
         _hasLastKnownTargetPoint = _headTarget != null;
 
+        _isUnknownPerson = (data != null && data.people_id == 0);
         personName       = data?.cues?.name         ?? "Unknown";
         relationship     = data?.cues?.relationship ?? "";
         durationSeconds  = (data != null && data.duration_seconds > 0f) ? data.duration_seconds : durationSeconds;
@@ -298,10 +304,20 @@ public class CueDisplay : MonoBehaviour
 
         RectTransform rootRect = root.GetComponent<RectTransform>();
 
-        string safeRelationship = string.IsNullOrWhiteSpace(relationship)
-            ? "person"
-            : relationship.ToLower();
-        string infoText = $"This is your {safeRelationship},\n{personName}.";
+        string infoText;
+        if (_isUnknownPerson)
+        {
+            infoText = string.IsNullOrWhiteSpace(unknownPersonMessage)
+                ? "This person isn't in your database.\nThey may be a stranger."
+                : unknownPersonMessage;
+        }
+        else
+        {
+            string safeRelationship = string.IsNullOrWhiteSpace(relationship)
+                ? "person"
+                : relationship.ToLower();
+            infoText = $"This is your {safeRelationship},\n{personName}.";
+        }
 
         float horizontalPadding = Mathf.Max(20f, fontSizePx * 0.5f);
         float topPadding = Mathf.Max(14f, fontSizePx * 0.35f);

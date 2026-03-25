@@ -118,7 +118,7 @@ public class CueManager : MonoBehaviour
     private void Start()
     {
         if (!autoStartOnPlay)
-            return;
+            return; // do nothing until triggered
 
         if (useDefaultConfig)
             LoadAndShowDefaultCue();
@@ -132,7 +132,7 @@ public class CueManager : MonoBehaviour
     {
         if (!TryLoadDefaultCueData(out CueData data))
         {
-            return;
+            return; // do nothing if default cue data is not available
         }
 
         StartCoroutine(ShowCueRoutine(data));
@@ -148,12 +148,12 @@ public class CueManager : MonoBehaviour
     {
         if (HasActiveCue || _spawnRequestInFlight)
         {
-            return false;
+            return false; // do nothing if a cue is already active or a spawn request is in flight
         }
 
         if (!TryLoadDefaultCueData(out CueData data))
         {
-            return false;
+            return false; // do nothing if default cue data is not available
         }
 
         StartCoroutine(ShowCueIfNoneRoutine(data, hintTarget));
