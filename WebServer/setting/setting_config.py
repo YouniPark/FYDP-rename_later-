@@ -1,0 +1,61 @@
+# Font size labels
+FONT_SIZE_SMALL = "small"
+FONT_SIZE_MEDIUM = "medium"
+FONT_SIZE_LARGE = "large"
+
+# Font sizes
+CUE_FONT_SMALL_PX = 24
+CUE_FONT_MEDIUM_PX = 36
+CUE_FONT_LARGE_PX = 48
+
+# Image size labels
+IMAGE_SIZE_SMALL = "small"
+IMAGE_SIZE_MEDIUM = "medium"
+IMAGE_SIZE_LARGE = "large"
+
+# Image sizes
+CUE_IMAGE_SMALL_SCALE = 0.8
+CUE_IMAGE_MEDIUM_SCALE = 1.0
+CUE_IMAGE_LARGE_SCALE = 1.2
+
+# Cue duration labels
+DURATION_SHORT = "short"
+DURATION_MEDIUM = "medium"
+DURATION_LONG = "long"
+
+# Cue duration time (in seconds)
+DURATION_SHORT_TIME = 45
+DURATION_MEDIUM_TIME = 70
+DURATION_LONG_TIME = 95
+
+# Voice type labels
+VOICE_MALE = "male"
+VOICE_FEMALE = "female"
+
+
+FONT_SIZE_TO_PX = {
+    FONT_SIZE_SMALL: CUE_FONT_SMALL_PX,
+    FONT_SIZE_MEDIUM: CUE_FONT_MEDIUM_PX,
+    FONT_SIZE_LARGE: CUE_FONT_LARGE_PX,
+}
+
+IMAGE_SIZE_TO_SCALE = {
+    IMAGE_SIZE_SMALL: CUE_IMAGE_SMALL_SCALE,
+    IMAGE_SIZE_MEDIUM: CUE_IMAGE_MEDIUM_SCALE,
+    IMAGE_SIZE_LARGE: CUE_IMAGE_LARGE_SCALE,
+}
+
+DURATION_TO_TIME = {
+    DURATION_SHORT: DURATION_SHORT_TIME,
+    DURATION_MEDIUM: DURATION_MEDIUM_TIME,
+    DURATION_LONG: DURATION_LONG_TIME,
+}
+
+
+DEFAULT_SETTINGS = {
+    "font_size": FONT_SIZE_MEDIUM,
+    "image_size": IMAGE_SIZE_MEDIUM,
+    "duration_time": DURATION_MEDIUM,
+    "voice_type": VOICE_FEMALE,
+    "cue_selection": ["name", "relationship", "image", "audio"],
+}

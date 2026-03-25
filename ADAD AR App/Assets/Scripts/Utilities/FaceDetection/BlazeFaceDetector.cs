@@ -18,6 +18,8 @@ public class BlazeFaceDetector : MonoBehaviour
     [Header("Camera Source")]
     [SerializeField] private ImageStream cameraSource;
 
+    public ImageStream CameraSource => cameraSource;
+
     [Header("Detection Settings")]
     public float scoreThreshold = 0.5f;
     public float iouThreshold = 0.3f;
@@ -25,6 +27,10 @@ public class BlazeFaceDetector : MonoBehaviour
     public int maxFacesToEmit = 5;
     [Tooltip("Reject tiny boxes that are usually noise (normalized size in 0..1 space).")]
     public float minBoxSizeNormalized = 0.05f;
+
+    [Header("Debug")]
+    [Tooltip("Enable/disable repetitive BlazeFace face-count threshold logs.")]
+    [SerializeField] private bool logDetectionThresholdMessages = false;
 
     [Header("Inference Rate")]
     public float detectionHz = 10f;
@@ -169,7 +175,7 @@ public class BlazeFaceDetector : MonoBehaviour
             var faces = _usingCompiledNmsModel ? DecodeCompiledOutputs() : DecodeRawOutputs();
             int faceCount = faces.Length;
 
-            if (faceCount != _lastLoggedFaceCount)
+            if (logDetectionThresholdMessages && faceCount != _lastLoggedFaceCount)
             {
                 if (faceCount > 0)
                     Debug.Log($"[BlazeFace] {faceCount} face(s) detected. Confidences: " +

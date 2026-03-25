@@ -77,3 +77,4 @@ exp*.xdf
 *eeg*.xdf
 *experiment*.xdf
 *Experiment_Data*.json
+.DS_Store

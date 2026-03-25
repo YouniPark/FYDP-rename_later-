@@ -814,8 +814,13 @@ PrefabInstance:
       objectReference: {fileID: 2046283835}
     - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}
+      propertyPath: holdDuration
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
+        type: 3}
       propertyPath: smoothingTime
-      value: 0.05
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}

@@ -1,0 +1,12 @@
+{
+    "people_id": 4,
+    "font_size_px": 48,
+    "image_scale": 0.4,
+    "duration_seconds": 30,
+    "cues": {
+        "name": "Yoonhee",
+        "relationship": "Coworker",
+        "image_path": "Cue Defaults/4/cue_photo_yoonhee_1",
+        "audio_path": "Cue Defaults/4/cue_audio_yoonhee_male"
+    }
+}

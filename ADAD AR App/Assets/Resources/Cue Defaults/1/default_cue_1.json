@@ -1,0 +1,12 @@
+{
+    "people_id": 1,
+    "font_size_px": 48,
+    "image_scale": 1,
+    "duration_seconds": 10,
+    "cues": {
+        "name": "Daniel",
+        "relationship": "Classmate",
+        "image_path": "Cue Defaults/1/cue_photo_daniel_1",
+        "audio_path": "Cue Defaults/1/cue_audio_daniel_female"
+    }
+}

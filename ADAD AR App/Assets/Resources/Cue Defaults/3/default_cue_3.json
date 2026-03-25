@@ -1,0 +1,12 @@
+{
+    "people_id": 3,
+    "font_size_px": 48,
+    "image_scale": 0.7,
+    "duration_seconds": 10,
+    "cues": {
+        "name": "Vivien",
+        "relationship": "Teammate",
+        "image_path": "Cue Defaults/3/cue_photo_vivien_1",
+        "audio_path": "Cue Defaults/3/cue_audio_vivien_female"
+    }
+}

@@ -149,6 +149,26 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
    - Send events to `POST /events`.
    - Stream JPEG frames to `WS /ws/video`.
 
+## Standalone face stream service (new path)
+
+The repository now includes a dedicated face-only runtime that does not start EEG/cue orchestration from `app.main`.
+
+Run:
+
+```bash
+uvicorn app.face_main:app --host 0.0.0.0 --port 8001
+```
+
+Endpoints:
+- `GET /health`
+- `GET /face/latest`
+- `GET /face/diagnostics`
+- `WS /ws/video`
+
+Notes:
+- This runtime is intended for the Unity fixation lookup path.
+- It reads model and mapping files through path-based settings (no direct module import from `facial-recognition-DNN`).
+
 ## Notes on robustness
 
 - Event requests return a structured error if EEG stream is not connected.
