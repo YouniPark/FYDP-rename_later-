@@ -90,7 +90,16 @@ class Settings(BaseSettings):
     # EEG Config
     # ------------------------------------------------------------------
 
+    eeg_lsl_stream_name: str = Field(default="Explore_84A1_ExG", alias="EEG_LSL_STREAM_NAME")
     eeg_lsl_retry_seconds: int = Field(default=4, alias="EEG_LSL_RETRY_SECONDS")
+
+    # EEG channel names in device output order (positional mapping from stream channels to EEG names).
+    # Set EEG_CHANNEL_NAMES as a JSON array in your .env to override, e.g.:
+    #   EEG_CHANNEL_NAMES=["Cz","Pz","P8","P7","O2","O1"]
+    eeg_channel_names: list[str] = Field(
+        default_factory=lambda: ["Cz", "Pz", "P8", "P7", "O2", "O1"],
+        alias="EEG_CHANNEL_NAMES",
+    )
 
     # Bandpass filter bounds (Hz)
     eeg_l_freq: float = Field(default=1.0, alias="EEG_L_FREQ")
@@ -115,6 +124,16 @@ class Settings(BaseSettings):
     # eeg_baseline_tmin=None means "from epoch start".
     eeg_baseline_tmin: Optional[float] = Field(default=-1.0, alias="EEG_BASELINE_TMIN")
     eeg_baseline_tmax: float = Field(default=-0.7, alias="EEG_BASELINE_TMAX")
+
+    # Epoch window (seconds relative to event timestamp).
+    # tmax controls how long after the event we must wait before reading the EEG buffer.
+    eeg_epoch_tmin: float = Field(default=-1.0, alias="EEG_EPOCH_TMIN")
+    eeg_epoch_tmax: float = Field(default=0.65, alias="EEG_EPOCH_TMAX")
+
+    # How often to poll the EEG buffer while waiting for post-event data to arrive (seconds).
+    eeg_buffer_poll_interval: float = Field(default=0.05, alias="EEG_BUFFER_POLL_INTERVAL")
+    # Maximum total time to wait for the buffer to cover the epoch window before giving up (seconds).
+    eeg_buffer_poll_timeout: float = Field(default=10.0, alias="EEG_BUFFER_POLL_TIMEOUT")
 
     # Peak-to-peak artifact rejection threshold in microvolts
     eeg_amp_thresh_uv: float = Field(default=200.0, alias="EEG_AMP_THRESH_UV")
