@@ -117,6 +117,8 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             features,
             model_path=state.settings.eeg_model_path,
             scaler_path=state.settings.eeg_scaler_path,
+            raw_csv_path=state.settings.eeg_features_raw_csv_path if state.settings.eeg_save_erp_features else None,
+            scaled_csv_path=state.settings.eeg_features_scaled_csv_path if state.settings.eeg_save_erp_features else None,
         )
         result = {
             "event_id": event_id,

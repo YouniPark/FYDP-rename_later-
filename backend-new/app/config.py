@@ -124,6 +124,24 @@ class Settings(BaseSettings):
     eeg_scaler_path: str = Field(default="./data/models/erp_feature_scaler.joblib", alias="EEG_SCALER_PATH")
 
     # ------------------------------------------------------------------
+    # ERP Feature Logging (data collection)
+    # ------------------------------------------------------------------
+
+    # Set to True to append ERP feature vectors to CSV files after each pipeline run.
+    # Useful for accumulating labelled data for future model training.
+    eeg_save_erp_features: bool = Field(default=True, alias="EEG_SAVE_ERP_FEATURES")
+
+    # CSV path for raw (pre-scaled) feature vectors
+    eeg_features_raw_csv_path: str = Field(
+        default="./data/generated/erp_features_raw.csv", alias="EEG_FEATURES_RAW_CSV_PATH"
+    )
+
+    # CSV path for scaled (post-scaler) feature vectors
+    eeg_features_scaled_csv_path: str = Field(
+        default="./data/generated/erp_features_scaled.csv", alias="EEG_FEATURES_SCALED_CSV_PATH"
+    )
+
+    # ------------------------------------------------------------------
     # LSL Fixation Inlet
     # ------------------------------------------------------------------
 
