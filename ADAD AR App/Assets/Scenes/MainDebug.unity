@@ -231,10 +231,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CueConnectionManager
   gazeInteractor: {fileID: 1275422905}
   cueManager: {fileID: 1299692931}
-  spawnCueDirectlyOnFixation: 1
+  sharedBackendConfigComponent: {fileID: 912688757}
   routingMode: 2
+  spawnCueDirectlyOnFixation: 0
   fixationToCueDelaySeconds: 0.5
   totalPeople: 4
+  wsReconnectDelaySeconds: 3
+  wsReceiveBufferBytes: 8192
+  pollIntervalSeconds: 0.5
+  pollTimeoutSeconds: 8
+  pollRequestTimeoutSeconds: 3
   backendLookupConfig:
     videoTransport: 0
     inferenceSampleFps: 20
@@ -245,7 +251,6 @@ MonoBehaviour:
     faceLookupUrl: http://10.0.0.1:8000/face/latest
     requestTimeoutSeconds: 3
     tieBreakStrategy: most_recent
-  sharedBackendConfigComponent: {fileID: 912688757}
   verboseLogs: 1
 --- !u!114 &912688756
 MonoBehaviour:
@@ -264,11 +269,11 @@ MonoBehaviour:
   sharedConnectionManager: {fileID: 912688755}
   faceDetector: {fileID: 94743640}
   imageStream: {fileID: 2046283835}
-  serverHost: 192.168.4.29
-  serverPort: 8001
+  serverHost: 192.168.141.124
+  serverPort: 8000
   wsPath: /ws/video
   sendFps: 10
-  jpegQuality: 100
+  jpegQuality: 75
   targetWidth: -1
   targetHeight: -1
   reconnectDelaySeconds: 3
@@ -286,10 +291,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BackendConnectionConfig
   serverHost: 192.168.141.124
-  serverPort: 8001
+  serverPort: 8000
   useTls: 0
   videoWsPath: /ws/video
   faceLookupPath: /face/latest
+  arWsPath: /ws/ar
+  cueLatestPath: /cue/latest
 --- !u!1 &917313730
 GameObject:
   m_ObjectHideFlags: 0
@@ -637,7 +644,7 @@ MonoBehaviour:
   useDefaultConfig: 1
   defaultCueResourcePath: Cue Defaults/default_cue
   perPersonCuePathFormat: Cue Defaults/{0}/default_cue_{0}
-  backendBaseUrl: http://192.168.4.29:8001
+  backendBaseUrl: http://192.168.4.44:8000
   cueEndpoint: /cue
   pollIntervalSeconds: 3
   cueTarget: {fileID: 0}

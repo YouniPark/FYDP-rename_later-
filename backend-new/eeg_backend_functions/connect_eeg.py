@@ -50,7 +50,7 @@ class EEGStreamContext:
     inlet: object
     channel_names: List[str]
     sfreq: float
-    buffer_seconds: float = 8.0
+    buffer_seconds: float = 3
 
     # Internal rolling buffers (timestamps in LSL timebase)
     _ts: deque = field(default_factory=deque, init=False, repr=False)
@@ -94,6 +94,11 @@ class EEGStreamContext:
             self._ts.popleft()
             self._x.popleft()
 
+    def latest_timestamp(self) -> Optional[float]:
+        """Pull any pending samples then return the newest timestamp in the buffer, or None if empty."""
+        self._update_buffer()
+        return float(self._ts[-1]) if self._ts else None
+
     def pull_window(self, start_ts: float, end_ts: float) -> Tuple[np.ndarray, np.ndarray]:
         """
         Return (data, timestamps) for samples whose LSL timestamps fall within
@@ -130,19 +135,21 @@ class EEGStreamContext:
         return data, ts[idx]
 
 
-def connect_eeg() -> Optional[EEGStreamContext]:
+def connect_eeg(stream_name: Optional[str] = None) -> Optional[EEGStreamContext]:
     """
     Connect EEG (replacing Explore py function).
 
-    Inputs: N/A
+    Inputs:
+        stream_name: LSL stream name to resolve by. Falls back to the
+                     EEG_LSL_STREAM_NAME env var, then resolves by type.
     Output: stream/context object used by the rest of the backend
     """
     global _STREAM
 
     from pylsl import StreamInlet, resolve_byprop  # type: ignore
 
+    stream_name = stream_name or os.getenv("EEG_LSL_STREAM_NAME")
     stream_type = os.getenv("EEG_LSL_STREAM_TYPE", "EEG")
-    stream_name = os.getenv("EEG_LSL_STREAM_NAME")
     timeout = float(os.getenv("EEG_LSL_RESOLVE_TIMEOUT", "5.0"))
 
     streams = []
@@ -151,7 +158,6 @@ def connect_eeg() -> Optional[EEGStreamContext]:
     if not streams:
         streams = resolve_byprop("type", stream_type, timeout=timeout)
     if not streams:
-        logger.warning("No EEG LSL stream found")
         _STREAM = None
         return None
 

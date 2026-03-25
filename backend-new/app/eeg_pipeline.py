@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import logging
-from typing import Any
+from typing import Any, Optional, Sequence
 
 import numpy as np
 
@@ -31,32 +31,48 @@ except ImportError:
 
 
 async def eeg_connect_loop(state: AppState) -> None:
+    stream_name = state.settings.eeg_lsl_stream_name
+    retry_seconds = state.settings.eeg_lsl_retry_seconds
     while True:
+        # Only attempt connection when we don't already have a stream.
+        current = await state.get_eeg_stream()
+        if current is not None:
+            await asyncio.sleep(retry_seconds)
+            continue
         try:
-            stream = await asyncio.to_thread(connect_eeg)
+            stream = await asyncio.to_thread(connect_eeg, stream_name)
             if stream is None:
-                await state.set_eeg_stream(None)
-                logger.info("EEG LSL stream not found; retrying")
-                await asyncio.sleep(state.settings.eeg_lsl_retry_seconds)
+                logger.warning("EEG LSL: No stream named '%s' found", stream_name)
+                logger.info("EEG LSL: retrying in %ds", retry_seconds)
+                await asyncio.sleep(retry_seconds)
                 continue
             await state.set_eeg_stream(stream)
-            logger.info("EEG LSL connected")
-            await asyncio.sleep(state.settings.eeg_lsl_retry_seconds)
+            logger.info("EEG LSL: connected to '%s'", stream_name)
         except Exception:
-            logger.exception("EEG connection attempt failed")
+            logger.exception("EEG LSL: connection attempt failed")
             await state.set_eeg_stream(None)
-            await asyncio.sleep(state.settings.eeg_lsl_retry_seconds)
+            await asyncio.sleep(retry_seconds)
 
 
-def _create_epoch_wrapper(stream: Any, event_lsl_timestamp: float) -> Any:
+def _create_epoch_wrapper(
+    stream: Any,
+    event_lsl_timestamp: float,
+    epoch_tmin: float,
+    epoch_tmax: float,
+    channel_names: Optional[Sequence[str]] = None,
+) -> Any:
     sig = inspect.signature(create_epoch)
     positional_count = sum(
         parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
         for parameter in sig.parameters.values()
     )
+    epoch_dur = (epoch_tmin, epoch_tmax)
+    kwargs = {"epoch_dur": epoch_dur}
+    if channel_names is not None and "channel_names" in sig.parameters:
+        kwargs["channel_names"] = channel_names
     if positional_count <= 1:
-        return create_epoch(event_lsl_timestamp)
-    return create_epoch(stream, event_lsl_timestamp)
+        return create_epoch(event_lsl_timestamp, **kwargs)
+    return create_epoch(stream, event_lsl_timestamp, **kwargs)
 
 
 async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_timestamp: float) -> dict[str, Any]:
@@ -99,7 +115,39 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             state.latest_eeg_result[event_id] = result
             return result
 
-        epoch = await asyncio.to_thread(_create_epoch_wrapper, stream, event_lsl_timestamp)
+        epoch_tmin = state.settings.eeg_epoch_tmin
+        epoch_tmax = state.settings.eeg_epoch_tmax
+        poll_interval = state.settings.eeg_buffer_poll_interval
+        poll_timeout = state.settings.eeg_buffer_poll_timeout
+
+        # Target: the buffer must contain data at least up to the end of the epoch window.
+        # We poll until the stream's latest buffered timestamp crosses that threshold,
+        # which handles variable Bluetooth delay robustly.
+        epoch_end_ts = event_lsl_timestamp + epoch_tmax
+        waited = 0.0
+        while True:
+            latest = await asyncio.to_thread(stream.latest_timestamp)
+            if latest is not None and latest >= epoch_end_ts:
+                break
+            if waited >= poll_timeout:
+                raise RuntimeError(
+                    f"Timed out after {poll_timeout:.1f}s waiting for EEG buffer to reach "
+                    f"{epoch_end_ts:.3f} (latest={latest})"
+                )
+            await asyncio.sleep(poll_interval)
+            waited += poll_interval
+
+        logger.info(
+            "EEG pipeline: buffer ready (waited %.2fs, latest_ts=%.3f) for event=%s",
+            waited,
+            latest,
+            event_id,
+        )
+
+        epoch = await asyncio.to_thread(
+            _create_epoch_wrapper, stream, event_lsl_timestamp, epoch_tmin, epoch_tmax,
+            state.settings.eeg_channel_names,
+        )
         features = await asyncio.to_thread(
             eeg_processing,
             epoch,

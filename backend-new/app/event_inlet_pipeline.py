@@ -38,9 +38,9 @@ async def event_inlet_loop(
         block polling.
     """
     try:
-        from pylsl import StreamInlet, resolve_byprop, LostError
-    except ImportError:
-        logger.error("pylsl is not installed; LSL fixation inlet is disabled")
+        from pylsl import StreamInlet, resolve_byprop
+    except ImportError as exc:
+        logger.error("pylsl is not installed; LSL event inlet is disabled: %s", exc)
         return
 
     stream_name = state.settings.lsl_fixation_stream_name
@@ -60,9 +60,12 @@ async def event_inlet_loop(
                 resolve_byprop, "name", stream_name, 1, resolve_timeout
             )
             if not streams:
-                logger.info(
-                    "Event inlet: stream '%s' not found; retrying in %.1fs",
+                logger.warning(
+                    "Event inlet: No LSL stream named '%s' found",
                     stream_name,
+                )
+                logger.info(
+                    "Event inlet: retrying in %.1fs",
                     retry_seconds,
                 )
                 await asyncio.sleep(retry_seconds)
@@ -73,26 +76,42 @@ async def event_inlet_loop(
             )
             logger.info("Event inlet: connected to stream '%s'", stream_name)
 
+            # Measure the clock offset between the ML2 headset (event sender) and
+            # the backend machine (EEG buffer receiver).  time_correction() returns
+            # the value that must be ADDED to a remote LSL timestamp to bring it
+            # into the local (backend) clock domain.  The first call takes a few
+            # hundred milliseconds; subsequent calls are nearly instant.
+            time_correction: float = await asyncio.to_thread(inlet.time_correction)
+            logger.info(
+                "Event inlet: clock offset (remote→local) = %.6fs for '%s'",
+                time_correction,
+                stream_name,
+            )
+
             while True:
                 # pull_sample(timeout=0.0) returns immediately with ("", 0.0) when the
                 # queue is empty, so it is safe to call directly without to_thread.
                 sample, ts = inlet.pull_sample(timeout=0.0)
                 if ts:
                     proxy_name: str = sample[0] if sample else ""
-                    event_id = f"event_{proxy_name}_{ts:.6f}"
+                    # Convert the remote (ML2) timestamp to the backend's local clock
+                    # so it aligns with the EEG buffer's LSL timestamps.
+                    local_ts = ts + time_correction
+                    event_id = f"event_{proxy_name}_{local_ts:.6f}"
                     logger.info(
-                        "Event inlet: fixation marker received (proxy=%s, ts=%.6f)",
+                        "Event inlet: fixation marker received (proxy=%s, remote_ts=%.6f, local_ts=%.6f)",
                         proxy_name,
                         ts,
+                        local_ts,
                     )
-                    asyncio.create_task(on_event(event_id, ts, proxy_name))
+                    asyncio.create_task(on_event(event_id, local_ts, proxy_name))
 
                 await asyncio.sleep(poll_interval)
 
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception(
-                "Event inlet: unexpected error; reconnecting in %.1fs", retry_seconds
-            )
+            logger.exception("Event inlet: lost connection to '%s'", stream_name)
+            logger.info("Event inlet: reconnecting in %.1fs...", retry_seconds)
             await asyncio.sleep(retry_seconds)
+            logger.info("Event inlet: reconnecting to '%s' now", stream_name)
