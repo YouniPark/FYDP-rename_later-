@@ -72,7 +72,9 @@ async def lifespan(_: FastAPI):
             event_lsl_timestamp=lsl_timestamp,
             is_unfamiliar=result["is_unfamiliar"],
         )
-        await hub.broadcast_json({"type": "cue_decision", "payload": decision.model_dump(mode="json")})
+        decision_json = decision.model_dump(mode="json")
+        state.latest_cue_decision_json = decision_json
+        await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
 
     eeg_task = asyncio.create_task(eeg_connect_loop(state))
     face_task = asyncio.create_task(face_recognition_loop(state))
@@ -106,8 +108,23 @@ async def post_event(event: EventIn) -> dict[str, Any]:
         is_unfamiliar=result["is_unfamiliar"],
     )
     payload = decision.model_dump(mode="json")
+    state.latest_cue_decision_json = payload
     await hub.broadcast_json({"type": "cue_decision", "payload": payload})
     return payload
+
+
+@app.get("/cue/latest")
+async def get_cue_latest() -> dict[str, Any]:
+    """Return the most recent cue decision produced by the EEG/face pipeline.
+
+    Returns 404 when no decision has been produced yet (e.g. backend just started).
+    Polling clients (AR app) should call this after a fixation event and keep
+    retrying until they receive a decision whose server_time is newer than the
+    fixation timestamp.
+    """
+    if state.latest_cue_decision_json is None:
+        raise HTTPException(status_code=404, detail="No cue decision available yet")
+    return state.latest_cue_decision_json
 
 
 @app.websocket("/ws/ar")

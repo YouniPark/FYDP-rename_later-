@@ -17,6 +17,8 @@ public class BackendConnectionConfig : MonoBehaviour
     [Header("Paths")]
     [SerializeField] private string videoWsPath = "/ws/video";
     [SerializeField] private string faceLookupPath = "/face/latest";
+    [SerializeField] private string arWsPath = "/ws/ar";
+    [SerializeField] private string cueLatestPath = "/cue/latest";
 
     public string BuildFaceLookupUrl()
     {
@@ -28,6 +30,25 @@ public class BackendConnectionConfig : MonoBehaviour
     {
         string scheme = useTls ? "wss" : "ws";
         return new Uri($"{scheme}://{GetHost()}:{Mathf.Max(1, serverPort)}{NormalizePath(videoWsPath, "/ws/video")}");
+    }
+
+    /// <summary>
+    /// WebSocket URI for the AR push channel. The backend broadcasts cue_decision messages
+    /// on this endpoint whenever the EEG/face pipeline produces a result.
+    /// </summary>
+    public Uri BuildArWebSocketUri()
+    {
+        string scheme = useTls ? "wss" : "ws";
+        return new Uri($"{scheme}://{GetHost()}:{Mathf.Max(1, serverPort)}{NormalizePath(arWsPath, "/ws/ar")}");
+    }
+
+    /// <summary>
+    /// HTTP URL for polling the most-recent cue decision (GET /cue/latest).
+    /// </summary>
+    public string BuildCueLatestUrl()
+    {
+        string scheme = useTls ? "https" : "http";
+        return $"{scheme}://{GetHost()}:{Mathf.Max(1, serverPort)}{NormalizePath(cueLatestPath, "/cue/latest")}";
     }
 
     private string GetHost()

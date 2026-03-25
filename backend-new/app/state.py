@@ -29,6 +29,8 @@ class AppState:
         self.current_face_id: str | None = None
         self.latest_eeg_result: dict[str, Any] = {}
         self.frame_queue: asyncio.Queue[tuple[float, bytes]] = asyncio.Queue(maxsize=settings.max_frame_queue)
+        # Latest processed cue decision — read by GET /cue/latest for polling clients.
+        self.latest_cue_decision_json: dict[str, Any] | None = None
 
     async def set_current_face(self, face_id: str | None) -> None:
         self.current_face_id = face_id
