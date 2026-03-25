@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from app.state import AppState
+from app.face_memory import face_memory_voter
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,24 @@ async def face_recognition_loop(state: AppState) -> None:
             frame = await asyncio.to_thread(_decode_jpeg, image_bytes)
             async with state.face_db_lock:
                 face_db_view = {k: v.model_dump(mode="json") for k, v in state.face_db.items()}
+            # face_id = await asyncio.to_thread(dnn_face_recognition, frame, face_db_view)
+            # await state.set_current_face(face_id)
+            # logger.info("Processed frame", extra={"frame_ts": timestamp, "face_id": face_id})
+
             face_id = await asyncio.to_thread(dnn_face_recognition, frame, face_db_view)
             await state.set_current_face(face_id)
-            logger.info("Processed frame", extra={"frame_ts": timestamp, "face_id": face_id})
+            vote = await face_memory_voter.add_detection(timestamp, face_id)
+            logger.info(
+                "Processed frame",
+                extra={
+                    "frame_ts": timestamp,
+                    "face_id": face_id,
+                    "voted_face_id": vote.face_id,
+                    "vote_confidence": vote.confidence,
+                    "vote_sample_count": vote.sample_count,
+                },
+            )
+            
         except Exception:
             logger.exception("Face recognition loop error")
         finally:

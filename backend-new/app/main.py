@@ -14,6 +14,7 @@ from app.face_pipeline import enqueue_frame, face_recognition_loop
 from app.event_inlet_pipeline import event_inlet_loop
 from app.state import AppState
 from app.storage.models import CueDBManifest, EventIn, FaceDBManifest, VideoFrameMessage
+from app.face_memory import face_memory_voter
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -66,12 +67,22 @@ async def lifespan(_: FastAPI):
                 event_id, result.get("status"),
             )
             return
+        # decision = await build_cue_decision(
+        #     state,
+        #     event_id=event_id,
+        #     event_lsl_timestamp=lsl_timestamp,
+        #     is_unfamiliar=result["is_unfamiliar"],
+        # )
+        voted_face = await face_memory_voter.get_voted_face(lsl_timestamp)
+
         decision = await build_cue_decision(
             state,
             event_id=event_id,
             event_lsl_timestamp=lsl_timestamp,
             is_unfamiliar=result["is_unfamiliar"],
+            face_id=voted_face,
         )
+
         decision_json = decision.model_dump(mode="json")
         state.latest_cue_decision_json = decision_json
         await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
@@ -101,12 +112,22 @@ async def post_event(event: EventIn) -> dict[str, Any]:
     result = await run_eeg_event_pipeline(state, event.event_id, event.event_lsl_timestamp)
     if result.get("status") != "ok":
         return result
+    # decision = await build_cue_decision(
+    #     state,
+    #     event_id=event.event_id,
+    #     event_lsl_timestamp=event.event_lsl_timestamp,
+    #     is_unfamiliar=result["is_unfamiliar"],
+    # )
+    voted_face = await face_memory_voter.get_voted_face(event.event_lsl_timestamp)
+
     decision = await build_cue_decision(
         state,
         event_id=event.event_id,
         event_lsl_timestamp=event.event_lsl_timestamp,
         is_unfamiliar=result["is_unfamiliar"],
+        face_id=voted_face,
     )
+
     payload = decision.model_dump(mode="json")
     state.latest_cue_decision_json = payload
     await hub.broadcast_json({"type": "cue_decision", "payload": payload})

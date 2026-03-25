@@ -158,5 +158,11 @@ class Settings(BaseSettings):
     # If False, events are silently dropped until the EEG stream becomes available.
     unfamiliar_if_no_eeg: bool = Field(default=True, alias="UNFAMILIAR_IF_NO_EEG")
 
+    # ------------------------------------------------------------------
+    # Face Recognition Config
+    # ------------------------------------------------------------------
+    memory_window_seconds: float = 5.0
+    memory_min_votes: int = 2
+    memory_majority_ratio: float = 0.6
 
 settings = Settings()
