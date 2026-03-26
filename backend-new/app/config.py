@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
 
     eeg_lsl_stream_name: str = Field(default="Explore_84A1_ExG", alias="EEG_LSL_STREAM_NAME")
-    eeg_lsl_retry_seconds: int = Field(default=30.0, alias="EEG_LSL_RETRY_SECONDS")
+    eeg_lsl_retry_seconds: int = Field(default=6.0, alias="EEG_LSL_RETRY_SECONDS")
 
     # EEG channel names in device output order (positional mapping from stream channels to EEG names).
     # Set EEG_CHANNEL_NAMES as a JSON array in your .env to override, e.g.:
@@ -112,13 +112,13 @@ class Settings(BaseSettings):
     )
 
     # Path to a saved MNE ICA .fif file; leave unset to skip ICA removal
-    eeg_ica_path: Optional[str] = Field(default='./data/models/ica.fif', alias="EEG_ICA_PATH")
+    eeg_ica_path: Optional[str] = Field(default='./data/models/eeg-ica.fif', alias="EEG_ICA_PATH")
 
     # Whether to apply REST re-referencing
     eeg_apply_rest: bool = Field(default=True, alias="EEG_APPLY_REST")
 
     # Path to a pre-computed forward solution for REST; required when eeg_apply_rest=True
-    eeg_forward_path: Optional[str] = Field(default='./data/models/rest_forward.fif', alias="EEG_FORWARD_PATH")
+    eeg_forward_path: Optional[str] = Field(default='./data/models/rest-fwd.fif', alias="EEG_FORWARD_PATH")
 
     # Baseline correction window (seconds relative to event).
     # eeg_baseline_tmin=None means "from epoch start".
@@ -131,12 +131,17 @@ class Settings(BaseSettings):
     eeg_epoch_tmax: float = Field(default=0.65, alias="EEG_EPOCH_TMAX")
 
     # How often to poll the EEG buffer while waiting for post-event data to arrive (seconds).
-    eeg_buffer_poll_interval: float = Field(default=0.05, alias="EEG_BUFFER_POLL_INTERVAL")
+    eeg_buffer_poll_interval: float = Field(default=0.1, alias="EEG_BUFFER_POLL_INTERVAL")
     # Maximum total time to wait for the buffer to cover the epoch window before giving up (seconds).
     eeg_buffer_poll_timeout: float = Field(default=10.0, alias="EEG_BUFFER_POLL_TIMEOUT")
 
     # Peak-to-peak artifact rejection threshold in microvolts
     eeg_amp_thresh_uv: float = Field(default=200.0, alias="EEG_AMP_THRESH_UV")
+
+    # When True, proceed to feature extraction and ML classification even if the epoch is
+    # rejected by the artifact check. Bad channels are imputed from the group average (N250/P300).
+    # Set IGNORE_TRIAL_REJECTION=true in .env to enable.
+    ignore_trial_rejection: bool = Field(default=True, alias="IGNORE_TRIAL_REJECTION")
 
     # Path to the trained SVM model and fitted scaler (.joblib files)
     eeg_model_path: str = Field(default="./data/models/erp_svm_model.joblib", alias="EEG_MODEL_PATH")
@@ -173,9 +178,23 @@ class Settings(BaseSettings):
     # How long to wait before retrying after a connection failure or stream loss
     lsl_fixation_retry_seconds: float = Field(default=6.0, alias="LSL_FIXATION_RETRY_SECONDS")
 
+    # Minimum seconds between accepted fixation events.  Events arriving sooner
+    # than this after the last accepted event are silently dropped at the inlet.
+    event_min_interval_s: float = Field(default=3.0, alias="EVENT_MIN_INTERVAL_S")
+
     # If True, events are processed as "unfamiliar" when the EEG stream is not connected.
     # If False, events are silently dropped until the EEG stream becomes available.
     unfamiliar_if_no_eeg: bool = Field(default=True, alias="UNFAMILIAR_IF_NO_EEG")
+
+    # ------------------------------------------------------------------
+    # Cue Delivery
+    # ------------------------------------------------------------------
+
+    # When True, the backend sends only the people_id in the cue payload.
+    # The AR app loads name/image/audio from its own local cue JSON files.
+    # When False, the backend reads settings.json and sends full cue data
+    # (including binary image/audio bytes) in the payload.
+    use_local_cues: bool = Field(default=True, alias="USE_LOCAL_CUES")
 
     # ------------------------------------------------------------------
     # Face Recognition Config

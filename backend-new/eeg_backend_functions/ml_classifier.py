@@ -23,26 +23,35 @@ concurrent pipeline calls don't interleave rows.
 from __future__ import annotations
 
 import csv
+import logging
 import os
 import threading
+import warnings
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
 import numpy as np
 
 
+logger = logging.getLogger(__name__)
 _csv_lock = threading.Lock()
 
 
-def _append_feature_row(csv_path: str, features: np.ndarray, is_unfamiliar: bool) -> None:
+def _append_feature_row(
+    csv_path: str,
+    features: np.ndarray,
+    is_unfamiliar: bool,
+    feature_names: "Optional[Sequence[str]]" = None,
+) -> None:
     """Append one row to a feature-log CSV; creates the file with a header if needed."""
     features_flat = features.flatten()
     n = len(features_flat)
-    fieldnames = ["timestamp_utc", "is_unfamiliar"] + [f"feat_{i}" for i in range(n)]
+    names = list(feature_names) if feature_names is not None else [f"feat_{i}" for i in range(n)]
+    fieldnames = ["timestamp_utc", "is_unfamiliar"] + names
     row: dict = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "is_unfamiliar": int(is_unfamiliar),
     }
-    row.update({f"feat_{i}": features_flat[i] for i in range(n)})
+    row.update({name: features_flat[i] for i, name in enumerate(names)})
 
     os.makedirs(os.path.dirname(os.path.abspath(csv_path)), exist_ok=True)
     file_exists = os.path.isfile(csv_path) and os.path.getsize(csv_path) > 0
@@ -63,6 +72,7 @@ def ml_classifier(
     scaler_path: Optional[str] = None,
     raw_csv_path: Optional[str] = None,
     scaled_csv_path: Optional[str] = None,
+    feature_names: "Optional[Sequence[str]]" = None,
 ) -> bool:
     """
     Inputs
@@ -81,6 +91,25 @@ def ml_classifier(
     """
     x = np.asarray(features, dtype=float).reshape(1, -1)
 
+    # Early check for NaN or Inf in input features
+    if not np.all(np.isfinite(x)):
+        nan_count = np.isnan(x).sum()
+        inf_count = np.isinf(x).sum()
+        logger.warning(
+            "ml_classifier: input features contain %d NaN and %d Inf values (shape=%s) — "
+            "this typically means eeg_processing encountered all-bad channels or empty time windows. "
+            "Treating as unfamiliar.",
+            nan_count, inf_count, x.shape,
+        )
+        return True  # Default to unfamiliar if input is invalid
+
+    # logger.debug(
+    #     "ml_classifier: input features shape=%s, range=[%.3f, %.3f]",
+    #     x.shape,
+    #     np.nanmin(x),
+    #     np.nanmax(x),
+    # )
+
     if (model is None or scaler is None) and (model_path or scaler_path):
         # Lazy-load if paths provided
         try:
@@ -88,15 +117,17 @@ def ml_classifier(
         except Exception as e:
             raise ImportError("joblib is required to load model/scaler from disk.") from e
 
-        if scaler is None:
-            if not scaler_path:
-                raise ValueError("scaler_path must be provided if scaler is None.")
-            scaler = joblib.load(scaler_path)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Trying to unpickle estimator")
+            if scaler is None:
+                if not scaler_path:
+                    raise ValueError("scaler_path must be provided if scaler is None.")
+                scaler = joblib.load(scaler_path)
 
-        if model is None:
-            if not model_path:
-                raise ValueError("model_path must be provided if model is None.")
-            model = joblib.load(model_path)
+            if model is None:
+                if not model_path:
+                    raise ValueError("model_path must be provided if model is None.")
+                model = joblib.load(model_path)
 
     if scaler is None or model is None:
         raise ValueError(
@@ -104,8 +135,37 @@ def ml_classifier(
             "or `model_path` and `scaler_path` to load them."
         )
 
-    x_scaled = scaler.transform(x)
+    # If the scaler was fitted with a DataFrame, pass a DataFrame so column names
+    # match and sklearn does not emit a feature-names warning.
+    x_input: object
+    if hasattr(scaler, "feature_names_in_"):
+        import pandas as pd
+        x_input = pd.DataFrame(x, columns=scaler.feature_names_in_)
+        logger.debug("ml_classifier: using DataFrame input with %d named features", len(scaler.feature_names_in_))
+    else:
+        x_input = x
+
+    logger.debug("ml_classifier: running scaler.transform (input shape=%s)", getattr(x_input, 'shape', '?'))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="X does not have valid feature names")
+        x_scaled = scaler.transform(x_input)
+    logger.debug("ml_classifier: scaler.transform complete; running model.predict")
     y_pred = model.predict(x_scaled)
+    logger.debug("ml_classifier: model.predict returned %s", y_pred)
+
+    # Log decision scores or probabilities when available
+    if hasattr(model, "decision_function"):
+        try:
+            scores = model.decision_function(x_scaled)
+            logger.debug("ml_classifier: decision_function scores=%s", scores)
+        except Exception:
+            pass
+    if hasattr(model, "predict_proba"):
+        try:
+            proba = model.predict_proba(x_scaled)
+            logger.debug("ml_classifier: predict_proba=%s  classes=%s", proba, getattr(model, 'classes_', '?'))
+        except Exception:
+            pass
 
     # Handle classifiers that return shape (1,) with bool/int
     pred = y_pred[0]
@@ -118,8 +178,8 @@ def ml_classifier(
         is_unfamiliar = str(pred).strip().lower() in {"1", "true", "unf", "unfamiliar", "unrecognized"}
 
     if raw_csv_path:
-        _append_feature_row(raw_csv_path, x, is_unfamiliar)
+        _append_feature_row(raw_csv_path, x, is_unfamiliar, feature_names=feature_names)
     if scaled_csv_path:
-        _append_feature_row(scaled_csv_path, x_scaled, is_unfamiliar)
+        _append_feature_row(scaled_csv_path, x_scaled, is_unfamiliar, feature_names=feature_names)
 
     return is_unfamiliar

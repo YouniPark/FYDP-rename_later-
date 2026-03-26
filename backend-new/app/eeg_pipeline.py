@@ -11,19 +11,16 @@ from eeg_backend_functions.eeg_processing import EpochRejectedError
 logger = logging.getLogger(__name__)
 
 try:
-    from user_modules.eeg import connect_eeg, create_epoch, eeg_processing, event_filter
+    from user_modules.eeg import connect_eeg, create_epoch, eeg_processing
     from user_modules.model import ml_classifier
 except ImportError:
     def connect_eeg() -> Any:
         raise NotImplementedError("TO DO: implement connect_eeg import from user modules")
 
-    def event_filter(event_lsl_timestamp: float) -> bool:
-        raise NotImplementedError("TO DO: implement event_filter import from user modules")
-
     def create_epoch(stream: Any, event_lsl_timestamp: float) -> Any:
         raise NotImplementedError("TO DO: implement create_epoch import from user modules")
 
-    def eeg_processing(epoch: Any) -> np.ndarray:
+    def eeg_processing(epoch: Any) -> tuple:
         raise NotImplementedError("TO DO: implement eeg_processing import from user modules")
 
     def ml_classifier(features: np.ndarray) -> bool:
@@ -104,17 +101,6 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
         return result
 
     try:
-        should_process = await asyncio.to_thread(event_filter, event_lsl_timestamp)
-        if not should_process:
-            result = {
-                "event_id": event_id,
-                "event_lsl_timestamp": event_lsl_timestamp,
-                "status": "filtered",
-                "is_unfamiliar": False,
-            }
-            state.latest_eeg_result[event_id] = result
-            return result
-
         epoch_tmin = state.settings.eeg_epoch_tmin
         epoch_tmax = state.settings.eeg_epoch_tmax
         poll_interval = state.settings.eeg_buffer_poll_interval
@@ -170,7 +156,7 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             _create_epoch_wrapper, stream, event_lsl_timestamp, epoch_tmin, epoch_tmax,
             state.settings.eeg_channel_names,
         )
-        features = await asyncio.to_thread(
+        features, feature_names = await asyncio.to_thread(
             eeg_processing,
             epoch,
             l_freq=state.settings.eeg_l_freq,
@@ -181,6 +167,15 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             forward_path=state.settings.eeg_forward_path,
             baseline_window=(state.settings.eeg_baseline_tmin, state.settings.eeg_baseline_tmax),
             amp_thresh=state.settings.eeg_amp_thresh_uv * 1e-6,
+            ignore_trial_rejection=state.settings.ignore_trial_rejection,
+        )
+        logger.debug(
+            "EEG pipeline: eeg_processing returned features shape=%s, "
+            "n_nans=%d, range=[%.3f, %.3f]",
+            features.shape,
+            np.isnan(features).sum(),
+            np.nanmin(features),
+            np.nanmax(features),
         )
         is_unfamiliar = await asyncio.to_thread(
             ml_classifier,
@@ -189,6 +184,12 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             scaler_path=state.settings.eeg_scaler_path,
             raw_csv_path=state.settings.eeg_features_raw_csv_path if state.settings.eeg_save_erp_features else None,
             scaled_csv_path=state.settings.eeg_features_scaled_csv_path if state.settings.eeg_save_erp_features else None,
+            feature_names=feature_names,
+        )
+        logger.info(
+            "EEG pipeline: classifier result for event=%s — is_unfamiliar=%s",
+            event_id,
+            is_unfamiliar,
         )
         result = {
             "event_id": event_id,

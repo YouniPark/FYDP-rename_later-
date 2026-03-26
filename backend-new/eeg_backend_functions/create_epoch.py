@@ -172,6 +172,8 @@ def create_epoch(
         montage = mne.channels.make_standard_montage("standard_1020")
         raw.set_montage(montage, match_case=False, on_missing="ignore", verbose=False)
         logger.debug("create_epoch: montage applied — final ch_names=%s", raw.ch_names)
+        # Restrict the epoch to only the renamed channels, dropping any extras (e.g. CH7, CH8).
+        picks = [ch for ch in desired if ch in raw.ch_names]
 
     # Build single-event DataFrames to reuse epoching logic from notebook
     eeg_df = pd.DataFrame({"TIMESTAMP": ts})
@@ -227,7 +229,7 @@ def create_epoch(
         preload=True,
         reject=None,
         flat=None,
-        verbose=True,
+        verbose=False,
     )
 
     logger.info(

@@ -63,12 +63,17 @@ async def lifespan(_: FastAPI):
     async def dispatch_fixation(event_id: str, lsl_timestamp: float, _proxy_name: str) -> None:
         """Dispatch a fixation event received from LSL through the EEG pipeline."""
         result = await run_eeg_event_pipeline(state, event_id, lsl_timestamp)
-        if result.get("status") != "ok":
+        if "is_unfamiliar" not in result:
             logger.info(
-                "Event %s not processed (status=%s)",
+                "Event %s not forwarded to cue service (status=%s)",
                 event_id, result.get("status"),
             )
             return
+        if result.get("status") != "ok":
+            logger.info(
+                "Event %s proceeding to cue service despite non-ok status=%s (is_unfamiliar=%s)",
+                event_id, result.get("status"), result["is_unfamiliar"],
+            )
         # decision = await build_cue_decision(
         #     state,
         #     event_id=event_id,
@@ -76,6 +81,10 @@ async def lifespan(_: FastAPI):
         #     is_unfamiliar=result["is_unfamiliar"],
         # )
         voted_face = await face_memory_voter.get_voted_face(lsl_timestamp)
+        logger.info(
+            "Event %s: EEG result is_unfamiliar=%s  voted_face=%s — building cue decision",
+            event_id, result["is_unfamiliar"], voted_face,
+        )
 
         decision = await build_cue_decision(
             state,
@@ -86,6 +95,10 @@ async def lifespan(_: FastAPI):
         )
 
         decision_json = decision.model_dump(mode="json")
+        logger.info(
+            "Event %s: cue decision — send_cue=%s  face_id=%s  is_unfamiliar=%s",
+            event_id, decision.send_cue, decision.face_id, decision.is_unfamiliar,
+        )
         state.latest_cue_decision_json = decision_json
         await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
 
@@ -121,7 +134,7 @@ async def health() -> dict[str, str]:
 @app.post("/events")
 async def post_event(event: EventIn) -> dict[str, Any]:
     result = await run_eeg_event_pipeline(state, event.event_id, event.event_lsl_timestamp)
-    if result.get("status") != "ok":
+    if "is_unfamiliar" not in result:
         return result
     # decision = await build_cue_decision(
     #     state,
@@ -130,6 +143,10 @@ async def post_event(event: EventIn) -> dict[str, Any]:
     #     is_unfamiliar=result["is_unfamiliar"],
     # )
     voted_face = await face_memory_voter.get_voted_face(event.event_lsl_timestamp)
+    logger.info(
+        "Event %s: EEG result is_unfamiliar=%s  voted_face=%s — building cue decision",
+        event.event_id, result["is_unfamiliar"], voted_face,
+    )
 
     decision = await build_cue_decision(
         state,

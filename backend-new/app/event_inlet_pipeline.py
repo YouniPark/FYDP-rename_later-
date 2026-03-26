@@ -11,6 +11,7 @@ import logging
 from typing import Awaitable, Callable
 
 from app.state import AppState
+from eeg_backend_functions.event_filter import event_filter
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +98,17 @@ async def event_inlet_loop(
                     # Convert the remote (ML2) timestamp to the backend's local clock
                     # so it aligns with the EEG buffer's LSL timestamps.
                     local_ts = ts + time_correction
-                    event_id = f"event_{proxy_name}_{local_ts:.6f}"
                     logger.info(
-                        "Event inlet: fixation marker received (proxy=%s, remote_ts=%.6f, local_ts=%.6f)",
+                        "Event inlet: fixation event from inlet (proxy=%s, remote_ts=%.6f, local_ts=%.6f)",
                         proxy_name,
                         ts,
                         local_ts,
                     )
+
+                    if not event_filter(local_ts, min_interval_s=state.settings.event_min_interval_s):
+                        continue
+
+                    event_id = f"event_{proxy_name}_{local_ts:.6f}"
                     asyncio.create_task(on_event(event_id, local_ts, proxy_name))
 
                 await asyncio.sleep(poll_interval)

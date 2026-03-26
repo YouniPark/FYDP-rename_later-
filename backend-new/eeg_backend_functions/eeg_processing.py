@@ -101,7 +101,8 @@ def apply_ica_to_epoch(epoch: mne.Epochs, ica_path: str) -> mne.Epochs:
     """
     try:
         ica = mne.preprocessing.read_ica(ica_path, verbose=False)
-        logger.info("Loaded ICA from %s; excluding components: %s", ica_path, ica.exclude)
+        exclude_str = ", ".join(str(int(i)) for i in ica.exclude) if ica.exclude else "none"
+        logger.info("Loaded ICA from %s; excluding components: %s", ica_path, exclude_str)
         if not ica.exclude:
             logger.warning("Loaded ICA at '%s' has no components marked for exclusion", ica_path)
         epoch_clean = epoch.copy()
@@ -139,21 +140,29 @@ def apply_rest_reference_to_epoch(
             "re-referencing (e.g. epoch.set_montage('standard_1020'))."
         )
 
-    if forward_path is not None:
-        forward = mne.read_forward_solution(forward_path, verbose=False)
-        logger.info("Loaded forward model for REST from %s", forward_path)
-    else:
-        logger.info(
-            "No forward_path provided; computing sphere-model forward for REST "
-            "(consider pre-computing and saving to avoid this overhead)"
-        )
-        sphere = mne.make_sphere_model("auto", "auto", epoch.info)
-        src = mne.setup_volume_source_space(sphere=sphere, exclude=30.0, pos=15.0)
-        forward = mne.make_forward_solution(epoch.info, trans=None, src=src, bem=sphere)
-
-    epoch_rest = epoch.copy()
     try:
+        if forward_path is not None:
+            logger.info("REST: loading forward model from %s", forward_path)
+            forward = mne.read_forward_solution(forward_path, verbose=False)
+            logger.info("REST: forward model loaded")
+        else:
+            logger.info(
+                "REST: no forward_path provided; computing sphere-model forward "
+                "(consider pre-computing and saving to avoid this overhead)"
+            )
+            sphere = mne.make_sphere_model("auto", "auto", epoch.info)
+            src = mne.setup_volume_source_space(sphere=sphere, exclude=30.0, pos=15.0)
+            forward = mne.make_forward_solution(epoch.info, trans=None, src=src, bem=sphere)
+            logger.info("REST: sphere-model forward computed")
+
+        epoch_rest = epoch.copy()
+        logger.info(
+            "REST: applying set_eeg_reference (channels=%s)",
+            epoch_rest.ch_names,
+        )
         epoch_rest.set_eeg_reference("REST", forward=forward, verbose=False)
+        logger.info("REST: re-referencing complete")
+        return epoch_rest
     except Exception as exc:
         logger.warning(
             "REST re-referencing skipped (forward model incompatible with current epoch channels %s): %s",
@@ -161,7 +170,6 @@ def apply_rest_reference_to_epoch(
             exc,
         )
         return epoch
-    return epoch_rest
 
 
 def apply_epoch_baseline_correction(
@@ -193,6 +201,7 @@ def flag_bad_epoch(
     n250_channels: Sequence[str] = ("T7", "T8", "P7", "P8", "O1", "O2"),
     p300_channels: Sequence[str] = ("Cz", "Pz"),
     rejection_threshold: float = 0.5,
+    log_ok_channels: bool = False,
 ) -> Tuple[bool, List[str]]:
     """Check a single epoch for excessive artifacts.
 
@@ -230,6 +239,11 @@ def flag_bad_epoch(
 
     X = epoch.get_data()  # (1, n_channels, n_times) for a single epoch
 
+    logger.debug(
+        "flag_bad_epoch: data range (all samples, all channels) min=%.3e max=%.3e V",
+        np.min(X), np.max(X),
+    )
+
     # Clamp detection windows to the actual epoch boundaries
     t_min, t_max = float(epoch.tmin), float(epoch.tmax)
     bl = (max(baseline_window[0], t_min), min(baseline_window[1], t_max))
@@ -242,6 +256,13 @@ def flag_bad_epoch(
     for ch_i, ch in enumerate(ch_names):
         ptp_bl = float(np.ptp(X[0, ch_i, i0b : i1b + 1]))
         ptp_erp = float(np.ptp(X[0, ch_i, i0e : i1e + 1]))
+        is_bad = ptp_bl > amp_thresh or ptp_erp > amp_thresh
+        if is_bad or log_ok_channels:
+            logger.debug(
+                "flag_bad_epoch: %s ptp_baseline=%.3e ptp_erp=%.3e threshold=%.3e → %s",
+                ch, ptp_bl, ptp_erp, amp_thresh,
+                "BAD" if is_bad else "OK",
+            )
         if ptp_bl > amp_thresh or ptp_erp > amp_thresh:
             bad_channels.append(ch)
 
@@ -263,6 +284,13 @@ def flag_bad_epoch(
             p300_bad, len(p300_idx),
             is_rejected,
         )
+        if len(bad_channels) == len(ch_names):
+            logger.error(
+                "flag_bad_epoch: ALL %d channels marked as bad! "
+                "This will cause all features to be NaN since imputation will have no good channels to average. "
+                "Check data amplitude range or artifact threshold setting.",
+                len(ch_names),
+            )
 
     return is_rejected, bad_channels
 
@@ -332,6 +360,12 @@ def extract_epoch_features(
     rows = []
     for epoch in range(X.shape[0]):
         epoch_bad_channels = {channel.upper() for channel in bad_channels_per_epoch[epoch]}
+        logger.debug(
+            "extract_epoch_features: epoch=%d bad_channels (input)=%s → upper=%s",
+            epoch,
+            list(bad_channels_per_epoch[epoch]),
+            sorted(epoch_bad_channels),
+        )
         row = {}
         for ch, (i0, i1) in idx_windows.items():
             x = X[epoch, ch_idx[ch], i0:i1 + 1] * 1e6  # convert to µV
@@ -357,6 +391,15 @@ def extract_epoch_features(
         p300_good = [ch for ch in p300_present if ch.upper() not in epoch_bad_channels]
         p300_bad = [ch for ch in p300_present if ch.upper() in epoch_bad_channels]
 
+        logger.debug(
+            "extract_epoch_features: N250 present=%s good=%s bad=%s absent=%s",
+            n250_present, n250_good, n250_bad, n250_absent,
+        )
+        logger.debug(
+            "extract_epoch_features: P300 present=%s good=%s bad=%s absent=%s",
+            p300_present, p300_good, p300_bad, p300_absent,
+        )
+
         # Compute averaged features for N250 using only non-bad channels, then
         # impute bad or absent channels from the component average.
         if n250_present or n250_absent:
@@ -368,6 +411,10 @@ def extract_epoch_features(
                     for ch in n250_bad + n250_absent:
                         row[f"{ch}_{s}"] = component_mean
                 else:
+                    logger.warning(
+                        "extract_epoch_features: N250 averaging failed (no good channels); "
+                        "setting all N250 features to NaN"
+                    )
                     row[f"N250avg_{s}"] = float('nan')
                     for ch in n250_bad + n250_absent:
                         row[f"{ch}_{s}"] = float('nan')
@@ -383,6 +430,10 @@ def extract_epoch_features(
                     for ch in p300_bad + p300_absent:
                         row[f"{ch}_{s}"] = component_mean
                 else:
+                    logger.warning(
+                        "extract_epoch_features: P300 averaging failed (no good channels); "
+                        "setting all P300 features to NaN"
+                    )
                     row[f"P300avg_{s}"] = float('nan')
                     for ch in p300_bad + p300_absent:
                         row[f"{ch}_{s}"] = float('nan')
@@ -423,9 +474,10 @@ def eeg_processing(
     baseline_window: Optional[Tuple[Optional[float], Optional[float]]] = None,
     # --- artifact rejection ---
     amp_thresh: float = 200e-6,
+    ignore_trial_rejection: bool = False,
     # --- feature extraction ---
     ch_windows: Optional[Dict[str, Tuple[float, float]]] = None,
-) -> np.ndarray:
+) -> tuple[np.ndarray, list[str]]:
     """Full single-trial EEG preprocessing pipeline returning a 1D feature vector.
 
     Steps
@@ -456,6 +508,11 @@ def eeg_processing(
         Baseline correction window in seconds.  Defaults to (None, 0.0).
     amp_thresh : float
         Peak-to-peak artifact threshold in **volts** (default 200 µV).
+    ignore_trial_rejection : bool
+        When *True*, proceed to feature extraction even if the epoch is
+        rejected by the artifact check.  Bad channels are imputed from the
+        group average (N250/P300) as usual; no :class:`EpochRejectedError` is
+        raised.  Defaults to *False*.
     ch_windows : dict, optional
         Mapping of channel name → (tmin, tmax) for feature extraction.
 
@@ -463,12 +520,15 @@ def eeg_processing(
     -------
     features : np.ndarray, shape (n_features,)
         1D statistical feature vector (same column order as training CSV).
+    feature_names : list of str
+        Column names corresponding to each element of *features*.
 
     Raises
     ------
     EpochRejectedError
-        If the epoch fails artifact quality checks.  The pipeline treats this
-        as *is_unfamiliar=True* and logs it separately.
+        If the epoch fails artifact quality checks and *ignore_trial_rejection*
+        is *False*.  The pipeline treats this as *is_unfamiliar=True* and logs
+        it separately.
     """
     epoch = epoch_eeg_data
 
@@ -488,11 +548,23 @@ def eeg_processing(
 
     # 5. Artifact quality check
     is_rejected, bad_channels = flag_bad_epoch(epoch, amp_thresh=amp_thresh)
+    logger.info(
+        "eeg_processing: artifact check complete (amp_thresh=%.3e V = %.1f µV)",
+        amp_thresh,
+        amp_thresh * 1e6,
+    )
     if is_rejected:
-        raise EpochRejectedError(
-            f"Epoch rejected: {len(bad_channels)} bad channel(s) — {bad_channels}",
-            bad_channels=bad_channels,
-        )
+        if ignore_trial_rejection:
+            logger.warning(
+                    "Epoch rejected (bad_channels=%s) but ignore_trial_rejection=True — "
+                    "using all channels anyways.",
+                bad_channels,
+            )
+        else:
+            raise EpochRejectedError(
+                f"Epoch rejected: {len(bad_channels)} bad channel(s) — {bad_channels}",
+                bad_channels=bad_channels,
+            )
 
     # 6. Feature extraction
     if ch_windows is None:
@@ -510,8 +582,31 @@ def eeg_processing(
     df = extract_epoch_features(
         epoch,
         ch_windows,
-        bad_channels_per_epoch=[bad_channels],
+           bad_channels_per_epoch=[[] if (is_rejected and ignore_trial_rejection) else bad_channels],
     )
     feature_cols = [c for c in df.columns if c != "condition"]
     feats = df.loc[0, feature_cols].to_numpy(dtype=float, copy=False)
-    return feats
+
+    # Log feature values and check for NaN
+    nan_count = np.isnan(feats).sum()
+    if nan_count > 0:
+        nan_indices = np.where(np.isnan(feats))[0]
+        nan_cols = [feature_cols[i] for i in nan_indices]
+        logger.warning(
+            "eeg_processing: extracted features contain %d NaN values (columns: %s)",
+            nan_count,
+            ", ".join(nan_cols),
+        )
+        # Replace NaN with 0.0 as a safe default
+        feats = np.nan_to_num(feats, nan=0.0)
+        logger.info("eeg_processing: replaced NaN values with 0.0")
+    # else:
+        # logger.debug("eeg_processing: all %d features are valid (no NaN)", len(feats))
+
+    # logger.debug(
+    #     "eeg_processing: feature vector shape=%s, range=[%.3f, %.3f]",
+    #     feats.shape,
+    #     np.min(feats),
+    #     np.max(feats),
+    # )
+    return feats, feature_cols

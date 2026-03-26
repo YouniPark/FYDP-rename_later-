@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,8 @@ from WebServer.setting.setting_config import (
     FONT_SIZE_TO_PX,
     IMAGE_SIZE_TO_SCALE,
 )
+
+logger = logging.getLogger(__name__)
 
 SETTINGS_PATH = settings.setting_dir / "settings.json"
 PEOPLE_PATH = settings.people_json_path
@@ -87,6 +90,12 @@ def resolve_audio_path(person: dict[str, Any], people_id: int, voice_type: str) 
 
 
 def get_person_cue_data(people_id: int) -> dict[str, Any]:
+    # --- Local-cues mode: just return the ID, Unity loads everything locally ---
+    if settings.use_local_cues:
+        # logger.info("get_person_cue_data: use_local_cues=True — returning people_id=%s only", people_id)
+        return {"people_id": people_id}
+
+    # --- Full payload mode: read settings + binary files from PeopleDatabase ---
     settings_json = load_json(SETTINGS_PATH)
     people_data = load_json(PEOPLE_PATH)
 
@@ -123,17 +132,40 @@ def get_person_cue_data(people_id: int) -> dict[str, Any]:
     }
 
 
-def cue_preparation(is_unfamiliar: bool, people_id: int | None,) -> tuple[bool, dict[str, Any]]:
-    if is_unfamiliar:
+def cue_preparation(is_unfamiliar: bool, people_id: int | str | None) -> tuple[bool, dict[str, Any]]:
+    # Face recognition returns IDs as strings; people.json stores them as ints — coerce here.
+    if people_id is not None:
+        try:
+            people_id = int(people_id)
+        except (ValueError, TypeError):
+            logger.warning("cue_preparation: could not convert people_id=%r to int — treating as None", people_id)
+            people_id = None
+
+    logger.info(
+        "cue_preparation: is_unfamiliar=%s  people_id=%s",
+        is_unfamiliar, people_id,
+    )
+    if not is_unfamiliar:
+        # Person is already familiar — no cue needed.
+        logger.info("cue_preparation: familiar person — no cue sent")
         return False, {}
 
     if people_id is None:
-        # TO-DO: return message saying the person in question does not exist in the database 
+        # Unfamiliar but face recognition couldn't identify who they are — can't look up cue data.
+        logger.info("cue_preparation: unfamiliar but people_id is None (face not identified) — no cue sent")
         return False, {}
 
     try:
+        logger.info("cue_preparation: looking up cue data for people_id=%s", people_id)
         cue_payload = get_person_cue_data(people_id)
-    except Exception:
+        logger.info(
+            "cue_preparation: cue ready for people_id=%s — cue_keys=%s  duration=%.1fs",
+            people_id,
+            list(cue_payload.get("cues", {}).keys()),
+            cue_payload.get("duration_seconds", 0),
+        )
+    except Exception as exc:
+        logger.warning("cue_preparation: failed to build cue for people_id=%s — %s", people_id, exc)
         return False, {}
 
     return True, cue_payload
