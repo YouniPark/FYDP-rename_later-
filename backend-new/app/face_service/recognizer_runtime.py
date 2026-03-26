@@ -48,7 +48,8 @@ class FaceRuntimeRecognizer:
             raise RuntimeError("Failed to load face embedding network")
 
         with self.recognizer_model_path.open("rb") as f:
-            self.model, self.label_encoder = pickle.load(f)
+            loaded = pickle.load(f)
+            self.model, self.label_encoder = loaded[0], loaded[1]
 
     def predict_frame(self, frame_bgr: np.ndarray) -> FramePrediction:
         face = self._extract_primary_face(frame_bgr)

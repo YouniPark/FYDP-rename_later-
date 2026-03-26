@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from app.config import settings
 from app.cue_service import build_cue_decision
@@ -14,7 +14,9 @@ from app.face_pipeline import enqueue_frame, face_recognition_loop
 from app.event_inlet_pipeline import event_inlet_loop
 from app.state import AppState
 from app.storage.models import CueDBManifest, EventIn, FaceDBManifest, VideoFrameMessage
-from app.face_memory import face_memory_voter
+from app.face_memory import face_memory_voter, FaceVoteResult
+from app.face_contracts import FaceDebugResponse
+from app.face_debug import FaceDebugHub, face_debug_hub, build_face_debug_response
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -87,8 +89,17 @@ async def lifespan(_: FastAPI):
         state.latest_cue_decision_json = decision_json
         await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
 
+    async def _face_debug_publish(vote: FaceVoteResult, frame_b64: str, timestamp: float) -> None:
+        debug_response = build_face_debug_response(vote)
+        await face_debug_hub.publish({
+            "type": "face_debug",
+            "payload": debug_response.model_dump(mode="json"),
+            "frame_jpeg_b64": frame_b64,
+            "frame_timestamp": timestamp,
+        })
+
     eeg_task = asyncio.create_task(eeg_connect_loop(state))
-    face_task = asyncio.create_task(face_recognition_loop(state))
+    face_task = asyncio.create_task(face_recognition_loop(state, debug_publish=_face_debug_publish))
     event_lsl_task = asyncio.create_task(event_inlet_loop(state, dispatch_fixation))
     try:
         yield
@@ -220,6 +231,80 @@ async def get_cue_manifest() -> dict[str, Any]:
     async with state.cue_db_lock:
         manifest = CueDBManifest(cues=list(state.cue_db.values())).model_dump(mode="json")
     return manifest
+
+
+@app.get("/face/debug/latest", response_model=FaceDebugResponse)
+async def face_debug_latest() -> FaceDebugResponse:
+    vote = await face_memory_voter.get_latest_vote()
+    if vote is None:
+        raise HTTPException(status_code=404, detail="No face decision available yet")
+    return build_face_debug_response(vote)
+
+
+@app.websocket("/ws/face-debug")
+async def ws_face_debug(ws: WebSocket) -> None:
+    await face_debug_hub.connect(ws)
+    try:
+        while True:
+            _ = await ws.receive_text()
+    except WebSocketDisconnect:
+        await face_debug_hub.disconnect(ws)
+
+
+@app.get("/face/debug/ui")
+async def face_debug_ui() -> HTMLResponse:
+    return HTMLResponse("""
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Face Debug UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .row { display: flex; gap: 20px; align-items: flex-start; }
+    img { width: 480px; height: auto; border: 1px solid #ccc; background: #f5f5f5; }
+    .panel { min-width: 320px; }
+    .label { font-weight: bold; }
+    .kv { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <h2>Live Face Recognition Debug</h2>
+  <div class="row">
+    <img id="frame" alt="live frame" />
+    <div class="panel">
+      <div class="kv"><span class="label">Face ID:</span> <span id="dnn_name">-</span></div>
+      <div class="kv"><span class="label">Numeric ID:</span> <span id="dnn_face_id">-</span></div>
+      <div class="kv"><span class="label">Identity Name (people.json):</span> <span id="identity_name">-</span></div>
+      <div class="kv"><span class="label">Relationship:</span> <span id="relationship">-</span></div>
+      <div class="kv"><span class="label">Confidence:</span> <span id="confidence">-</span></div>
+      <div class="kv"><span class="label">Unknown:</span> <span id="is_unknown">-</span></div>
+      <div class="kv"><span class="label">Decided At:</span> <span id="decided_at">-</span></div>
+    </div>
+  </div>
+  <script>
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/face-debug`);
+    ws.onmessage = (evt) => {
+      const message = JSON.parse(evt.data);
+      if (message.type !== "face_debug") return;
+      const payload = message.payload || {};
+      const identity = payload.recognized_identity || {};
+      document.getElementById("dnn_name").textContent = payload.dnn_name ?? "-";
+      document.getElementById("dnn_face_id").textContent = payload.dnn_face_id ?? "-";
+      document.getElementById("identity_name").textContent = identity.name ?? "-";
+      document.getElementById("relationship").textContent = identity.relationship ?? "-";
+      document.getElementById("confidence").textContent = payload.confidence ?? "-";
+      document.getElementById("is_unknown").textContent = payload.is_unknown ?? "-";
+      document.getElementById("decided_at").textContent = payload.decided_at ?? "-";
+      if (message.frame_jpeg_b64) {
+        document.getElementById("frame").src = `data:image/jpeg;base64,${message.frame_jpeg_b64}`;
+      }
+    };
+  </script>
+</body>
+</html>
+    """)
 
 
 @app.get("/db/file")
