@@ -67,14 +67,5 @@ class FaceServiceSettings(BaseSettings):
         alias="FACE_DETECTOR_CAFFEMODEL_FALLBACK",
     )
 
-    people_json_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3]
-        / "WebServer"
-        / "database"
-        / "PeopleDatabase"
-        / "people.json",
-        alias="PEOPLE_JSON_PATH",
-    )
-
 
 face_service_settings = FaceServiceSettings()
