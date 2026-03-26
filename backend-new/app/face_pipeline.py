@@ -64,6 +64,7 @@ async def face_recognition_loop(state: AppState) -> None:
                 },
             )
             
+            # logger.info("Processed frame", extra={"frame_ts": timestamp, "face_id": face_id})
         except Exception:
             logger.exception("Face recognition loop error")
         finally:

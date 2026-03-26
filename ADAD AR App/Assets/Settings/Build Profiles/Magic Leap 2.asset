@@ -43,8 +43,8 @@ MonoBehaviour:
     - line: '|   targetDevice: 2'
     - line: '|   useOnDemandResources: 0'
     - line: '|   accelerometerFrequency: 60'
-    - line: '|   companyName: ADAD'
-    - line: '|   productName: ADAD AR App (MainDebug)'
+    - line: '|   companyName: ADAD Vivi'
+    - line: '|   productName: ADAD AR App (MainDebug Vivi)'
     - line: '|   defaultCursor: {instanceID: 0}'
     - line: '|   cursorHotspot: {x: 0, y: 0}'
     - line: '|   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b:
@@ -176,10 +176,16 @@ MonoBehaviour:
     - line: '|   loadStoreDebugModeEnabled: 0'
     - line: '|   visionOSBundleVersion: 1.0'
     - line: '|   tvOSBundleVersion: 1.0'
-    - line: '|   bundleVersion: 1.0'
+    - line: '|   bundleVersion: 1.1'
     - line: '|   preloadedAssets:'
     - line: '|   - {fileID: -944628639613478452, guid: bb4daeceea261404d9e9069323220d1b,
         type: 3}'
+    - line: '|   - {fileID: -711011236961965893, guid: ec2900a7e0f055944b3ece10141b7ca8,
+        type: 2}'
+    - line: '|   - {fileID: 11400000, guid: 69298bdbd51e780479dd724a0001945b, type:
+        2}'
+    - line: '|   - {fileID: -4689602199625395421, guid: b2fc19394268e6840ada816b20bb3a18,
+        type: 2}'
     - line: '|   metroInputSource: 0'
     - line: '|   wsaTransparentSwapchain: 0'
     - line: '|   m_HolographicPauseOnTrackingLoss: 1'
