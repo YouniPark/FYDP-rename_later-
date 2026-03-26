@@ -99,6 +99,10 @@ class EEGStreamContext:
         self._update_buffer()
         return float(self._ts[-1]) if self._ts else None
 
+    def earliest_timestamp(self) -> Optional[float]:
+        """Return the oldest timestamp currently in the buffer without pulling new data."""
+        return float(self._ts[0]) if self._ts else None
+
     def pull_window(self, start_ts: float, end_ts: float) -> Tuple[np.ndarray, np.ndarray]:
         """
         Return (data, timestamps) for samples whose LSL timestamps fall within

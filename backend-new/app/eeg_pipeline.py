@@ -144,6 +144,28 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             event_id,
         )
 
+        # Check that the buffer holds enough *pre-event* history for the epoch window.
+        epoch_start_ts = event_lsl_timestamp + epoch_tmin  # epoch_tmin is negative
+        earliest = await asyncio.to_thread(stream.earliest_timestamp)
+        if earliest is None or earliest > epoch_start_ts:
+            logger.warning(
+                "EEG pipeline: insufficient pre-event buffer history for event=%s — "
+                "need data from %.3f but buffer starts at %s (stream may have just connected). "
+                "Treating as unfamiliar.",
+                event_id,
+                epoch_start_ts,
+                f"{earliest:.3f}" if earliest is not None else "<empty>",
+            )
+            result = {
+                "event_id": event_id,
+                "event_lsl_timestamp": event_lsl_timestamp,
+                "status": "ok",
+                "is_unfamiliar": True,
+                "reason": "insufficient_eeg_buffer_history",
+            }
+            state.latest_eeg_result[event_id] = result
+            return result
+
         epoch = await asyncio.to_thread(
             _create_epoch_wrapper, stream, event_lsl_timestamp, epoch_tmin, epoch_tmax,
             state.settings.eeg_channel_names,
@@ -194,10 +216,17 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
         state.latest_eeg_result[event_id] = result
         return result
     except Exception as exc:
-        logger.exception("EEG event pipeline failed", extra={"event_id": event_id})
-        return {
+        logger.exception(
+            "EEG event pipeline failed for event %s — treating as unfamiliar",
+            event_id,
+            extra={"event_id": event_id},
+        )
+        result = {
             "event_id": event_id,
             "event_lsl_timestamp": event_lsl_timestamp,
             "status": "error",
+            "is_unfamiliar": True,
             "reason": str(exc),
         }
+        state.latest_eeg_result[event_id] = result
+        return result

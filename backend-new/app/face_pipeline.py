@@ -47,7 +47,7 @@ async def face_recognition_loop(state: AppState) -> None:
                 face_db_view = {k: v.model_dump(mode="json") for k, v in state.face_db.items()}
             face_id = await asyncio.to_thread(dnn_face_recognition, frame, face_db_view)
             await state.set_current_face(face_id)
-            logger.info("Processed frame", extra={"frame_ts": timestamp, "face_id": face_id})
+            # logger.info("Processed frame", extra={"frame_ts": timestamp, "face_id": face_id})
         except Exception:
             logger.exception("Face recognition loop error")
         finally:

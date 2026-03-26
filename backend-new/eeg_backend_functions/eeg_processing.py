@@ -64,9 +64,22 @@ def filter_epoch(
     if notch_freqs is None:
         notch_freqs = [60.0, 120.0]
     epoch_filt = epoch.copy().load_data()
-    epoch_filt.filter(l_freq, h_freq, verbose=False)
+    # IIR has no filter-length constraint, making it safe for short (~1-2s) epochs.
+    epoch_filt.filter(l_freq, h_freq, method='iir', verbose=False)
     if notch_freqs:
-        epoch_filt.notch_filter(freqs=notch_freqs, verbose=False)
+        # IIR notch filters only support a single stop-band per call, so apply each frequency separately.
+        # Applying to the data array directly avoids the missing .notch_filter() method on older MNE Epochs.
+        from mne.filter import notch_filter as _mne_notch_filter
+        data = epoch_filt.get_data()
+        for freq in notch_freqs:
+            data = _mne_notch_filter(
+                data,
+                epoch_filt.info['sfreq'],
+                freqs=[freq],
+                method='iir',
+                verbose=False,
+            )
+        epoch_filt._data = data
     return epoch_filt
 
 
@@ -76,6 +89,9 @@ def apply_ica_to_epoch(epoch: mne.Epochs, ica_path: str) -> mne.Epochs:
     The ICA file must be a MNE .fif ICA file saved from a calibration session
     with the exclusion list already set.
 
+    If the saved ICA was fitted on a different channel set than the current
+    epoch, a warning is logged and the epoch is returned unchanged.
+
     Parameters
     ----------
     epoch : mne.Epochs
@@ -83,13 +99,21 @@ def apply_ica_to_epoch(epoch: mne.Epochs, ica_path: str) -> mne.Epochs:
     ica_path : str
         Path to the saved ICA .fif file (e.g. ``"./data/ica/sub01-ica.fif"``).
     """
-    ica = mne.preprocessing.read_ica(ica_path, verbose=False)
-    logger.info("Loaded ICA from %s; excluding components: %s", ica_path, ica.exclude)
-    if not ica.exclude:
-        logger.warning("Loaded ICA at '%s' has no components marked for exclusion", ica_path)
-    epoch_clean = epoch.copy()
-    ica.apply(epoch_clean, verbose=False)
-    return epoch_clean
+    try:
+        ica = mne.preprocessing.read_ica(ica_path, verbose=False)
+        logger.info("Loaded ICA from %s; excluding components: %s", ica_path, ica.exclude)
+        if not ica.exclude:
+            logger.warning("Loaded ICA at '%s' has no components marked for exclusion", ica_path)
+        epoch_clean = epoch.copy()
+        ica.apply(epoch_clean, verbose=False)
+        return epoch_clean
+    except Exception as exc:
+        logger.warning(
+            "ICA application skipped (model incompatible with current epoch channels %s): %s",
+            epoch.ch_names,
+            exc,
+        )
+        return epoch
 
 
 def apply_rest_reference_to_epoch(
@@ -128,7 +152,15 @@ def apply_rest_reference_to_epoch(
         forward = mne.make_forward_solution(epoch.info, trans=None, src=src, bem=sphere)
 
     epoch_rest = epoch.copy()
-    epoch_rest.set_eeg_reference("REST", forward=forward, verbose=False)
+    try:
+        epoch_rest.set_eeg_reference("REST", forward=forward, verbose=False)
+    except Exception as exc:
+        logger.warning(
+            "REST re-referencing skipped (forward model incompatible with current epoch channels %s): %s",
+            epoch.ch_names,
+            exc,
+        )
+        return epoch
     return epoch_rest
 
 
