@@ -70,6 +70,7 @@ def ml_classifier(
     scaler: Optional[object] = None,
     model_path: Optional[str] = None,
     scaler_path: Optional[str] = None,
+    scale_divisor: Optional[float] = 200,
     raw_csv_path: Optional[str] = None,
     scaled_csv_path: Optional[str] = None,
     feature_names: "Optional[Sequence[str]]" = None,
@@ -79,6 +80,14 @@ def ml_classifier(
     ------
     features : np.ndarray
         1D statistical feature vector (same column order as training).
+    scaler : sklearn-style scaler (has ``.transform()``) or any callable, optional
+        If a callable without ``.transform``, it is called directly as
+        ``scaler(x)`` and must return the scaled array.  Pass e.g.
+        ``scaler=lambda x: x / 200`` for a simple divisor.
+    scale_divisor : float, optional
+        If provided, raw features are divided by this value *before* being
+        passed to any scaler.  Useful as a quick brute-force normalisation
+        when the fitted scaler leaves values too large (e.g. ``scale_divisor=200``).
     raw_csv_path : str, optional
         If provided, append the pre-scaled feature vector to this CSV file.
     scaled_csv_path : str, optional
@@ -135,21 +144,33 @@ def ml_classifier(
             "or `model_path` and `scaler_path` to load them."
         )
 
-    # If the scaler was fitted with a DataFrame, pass a DataFrame so column names
-    # match and sklearn does not emit a feature-names warning.
-    x_input: object
-    if hasattr(scaler, "feature_names_in_"):
-        import pandas as pd
-        x_input = pd.DataFrame(x, columns=scaler.feature_names_in_)
-        logger.debug("ml_classifier: using DataFrame input with %d named features", len(scaler.feature_names_in_))
-    else:
-        x_input = x
+    # Optional brute-force pre-scaling divisor applied before the scaler
+    if scale_divisor is not None:
+        logger.debug("ml_classifier: applying scale_divisor=%.4g", scale_divisor)
+        x = x / scale_divisor
 
-    logger.debug("ml_classifier: running scaler.transform (input shape=%s)", getattr(x_input, 'shape', '?'))
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="X does not have valid feature names")
-        x_scaled = scaler.transform(x_input)
-    logger.debug("ml_classifier: scaler.transform complete; running model.predict")
+    # Support two scaler styles:
+    #   1. sklearn-style object with .transform()  (default)
+    #   2. any plain callable, called directly as scaler(x)
+    logger.debug("ml_classifier: running scaler (input shape=%s)", x.shape)
+    if not hasattr(scaler, "transform") and callable(scaler):
+        x_scaled = np.asarray(scaler(x), dtype=float)
+        logger.debug("ml_classifier: custom callable scaler applied")
+    else:
+        # If the scaler was fitted with a DataFrame, pass a DataFrame so column names
+        # match and sklearn does not emit a feature-names warning.
+        x_input: object
+        if hasattr(scaler, "feature_names_in_"):
+            import pandas as pd
+            x_input = pd.DataFrame(x, columns=scaler.feature_names_in_)
+            logger.debug("ml_classifier: using DataFrame input with %d named features", len(scaler.feature_names_in_))
+        else:
+            x_input = x
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="X does not have valid feature names")
+            x_scaled = scaler.transform(x_input)
+    logger.debug("ml_classifier: scaler complete; running model.predict")
     y_pred = model.predict(x_scaled)
     logger.debug("ml_classifier: model.predict returned %s", y_pred)
 

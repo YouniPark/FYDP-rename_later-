@@ -141,7 +141,7 @@ class Settings(BaseSettings):
     # When True, proceed to feature extraction and ML classification even if the epoch is
     # rejected by the artifact check. Bad channels are imputed from the group average (N250/P300).
     # Set IGNORE_TRIAL_REJECTION=true in .env to enable.
-    ignore_trial_rejection: bool = Field(default=True, alias="IGNORE_TRIAL_REJECTION")
+    ignore_trial_rejection: bool = Field(default=False, alias="IGNORE_TRIAL_REJECTION")
 
     # Path to the trained SVM model and fitted scaler (.joblib files)
     eeg_model_path: str = Field(default="./data/models/erp_svm_model.joblib", alias="EEG_MODEL_PATH")

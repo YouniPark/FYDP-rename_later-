@@ -286,9 +286,7 @@ def flag_bad_epoch(
         )
         if len(bad_channels) == len(ch_names):
             logger.error(
-                "flag_bad_epoch: ALL %d channels marked as bad! "
-                "This will cause all features to be NaN since imputation will have no good channels to average. "
-                "Check data amplitude range or artifact threshold setting.",
+                "flag_bad_epoch: ALL %d channels marked as bad. ",
                 len(ch_names),
             )
 
