@@ -39,3 +39,28 @@ class LatestFaceDecisionResponse(BaseModel):
         default=False,
         description="True when winner is Unknown (people_id=0).",
     )
+
+class FaceDebugIdentity(BaseModel):
+    id: int
+    name: str | None = None
+    relationship: str | None = None
+
+
+class FaceDebugResponse(BaseModel):
+    dnn_name: str | None = Field(
+        default=None,
+        description="Raw class label emitted by the DNN recognizer vote.",
+    )
+    dnn_face_id: int | None = Field(
+        default=None,
+        description="Numeric face ID resolved from facial-recognition-DNN face_id_mapping.csv.",
+    )
+    recognized_identity: FaceDebugIdentity | None = Field(
+        default=None,
+        description="Identity details resolved from WebServer/database/PeopleDatabase/people.json.",
+    )
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    decided_at: datetime
+    sample_count: int = Field(ge=0)
+    window_seconds: float = Field(gt=0.0)
+    is_unknown: bool = False

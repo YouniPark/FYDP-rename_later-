@@ -162,7 +162,10 @@ uvicorn app.face_main:app --host 0.0.0.0 --port 8001
 Endpoints:
 - `GET /health`
 - `GET /face/latest`
+- `GET /face/debug/latest` (includes both DNN label/ID + identity resolved from `people.json`)
+- `GET /face/debug/ui` (live browser interface showing incoming frame + DNN/identity fields)
 - `GET /face/diagnostics`
+- `WS /ws/face-debug` (stream of live debug payload + jpeg frame)
 - `WS /ws/video`
 
 Notes:

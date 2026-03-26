@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from app.state import AppState
+from app.face_memory import face_memory_voter
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +39,31 @@ def _decode_jpeg(image_bytes: bytes) -> np.ndarray:
     return frame
 
 
-async def face_recognition_loop(state: AppState) -> None:
+async def face_recognition_loop(state: AppState, debug_publish=None) -> None:
     while True:
         timestamp, image_bytes = await state.frame_queue.get()
         try:
             frame = await asyncio.to_thread(_decode_jpeg, image_bytes)
             async with state.face_db_lock:
                 face_db_view = {k: v.model_dump(mode="json") for k, v in state.face_db.items()}
+
             face_id = await asyncio.to_thread(dnn_face_recognition, frame, face_db_view)
             await state.set_current_face(face_id)
-            # logger.info("Processed frame", extra={"frame_ts": timestamp, "face_id": face_id})
+            vote = await face_memory_voter.add_detection(timestamp, face_id)
+            # logger.info(
+            #     "Processed frame",
+            #     extra={
+            #         "frame_ts": timestamp,
+            #         "face_id": face_id,
+            #         "voted_face_id": vote.face_id,
+            #         "vote_confidence": vote.confidence,
+            #         "vote_sample_count": vote.sample_count,
+            #     },
+            # )
+
+            if debug_publish is not None:
+                frame_b64 = base64.b64encode(image_bytes).decode("ascii")
+                await debug_publish(vote, frame_b64, timestamp)
         except Exception:
             logger.exception("Face recognition loop error")
         finally:

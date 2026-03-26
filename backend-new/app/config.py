@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
 
     eeg_lsl_stream_name: str = Field(default="Explore_84A1_ExG", alias="EEG_LSL_STREAM_NAME")
-    eeg_lsl_retry_seconds: int = Field(default=4, alias="EEG_LSL_RETRY_SECONDS")
+    eeg_lsl_retry_seconds: int = Field(default=30.0, alias="EEG_LSL_RETRY_SECONDS")
 
     # EEG channel names in device output order (positional mapping from stream channels to EEG names).
     # Set EEG_CHANNEL_NAMES as a JSON array in your .env to override, e.g.:
@@ -171,11 +171,17 @@ class Settings(BaseSettings):
     # Polling interval (seconds) between non-blocking pull_sample calls
     lsl_fixation_poll_interval: float = Field(default=0.1, alias="LSL_FIXATION_POLL_INTERVAL")
     # How long to wait before retrying after a connection failure or stream loss
-    lsl_fixation_retry_seconds: float = Field(default=5.0, alias="LSL_FIXATION_RETRY_SECONDS")
+    lsl_fixation_retry_seconds: float = Field(default=6.0, alias="LSL_FIXATION_RETRY_SECONDS")
 
     # If True, events are processed as "unfamiliar" when the EEG stream is not connected.
     # If False, events are silently dropped until the EEG stream becomes available.
     unfamiliar_if_no_eeg: bool = Field(default=True, alias="UNFAMILIAR_IF_NO_EEG")
 
+    # ------------------------------------------------------------------
+    # Face Recognition Config
+    # ------------------------------------------------------------------
+    memory_window_seconds: float = 5.0
+    memory_min_votes: int = 2
+    memory_majority_ratio: float = 0.6
 
 settings = Settings()

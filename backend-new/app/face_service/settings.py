@@ -15,9 +15,9 @@ class FaceServiceSettings(BaseSettings):
     backend_root: Path = Path(__file__).resolve().parents[2]
 
     host: str = Field(default="0.0.0.0", alias="FACE_SERVICE_HOST")
-    port: int = Field(default=8001, alias="FACE_SERVICE_PORT", ge=1, le=65535)
+    port: int = Field(default=8000, alias="FACE_SERVICE_PORT", ge=1, le=65535)
 
-    inference_sample_fps: float = Field(default=5.0, alias="INFERENCE_SAMPLE_FPS", gt=0.0)
+    inference_sample_fps: float = Field(default=10.0, alias="INFERENCE_SAMPLE_FPS", gt=0.0)
     memory_window_seconds: float = Field(default=2.0, alias="MEMORY_WINDOW_SECONDS", gt=0.0)
     unknown_threshold: float = Field(default=0.5, alias="UNKNOWN_THRESHOLD", ge=0.0, le=1.0)
     detector_conf_threshold: float = Field(default=0.7, alias="DETECTOR_CONF_THRESHOLD", ge=0.0, le=1.0)
@@ -55,15 +55,15 @@ class FaceServiceSettings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parents[3]
         / "facial-recognition-DNN"
         / "face_detection_model"
-        / "res10_300x300_ssd_iter_140000.caffemodel",
+        / "res10_300x300_ssd.caffemodel",
         alias="FACE_DETECTOR_CAFFEMODEL",
     )
     detector_prototxt_fallback_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3] / "models" / "deploy.prototxt",
+        default_factory=lambda: Path(__file__).resolve().parents[3] / "poc" / "deploy.prototxt",
         alias="FACE_DETECTOR_PROTOTXT_FALLBACK",
     )
     detector_caffemodel_fallback_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3] / "models" / "res10_300x300_ssd.caffemodel",
+        default_factory=lambda: Path(__file__).resolve().parents[3] / "poc" / "res10_300x300_ssd.caffemodel",
         alias="FACE_DETECTOR_CAFFEMODEL_FALLBACK",
     )
 
