@@ -15,6 +15,20 @@ app.include_router(setting_router)
 app.mount("/localdb", StaticFiles(directory=str(DEFAULT_DB_DIR)), name="localdb")
 
 
+# # Create public URL for image and audio cues 
+# app.mount(
+#     "/media/images",
+#     StaticFiles(directory=DEFAULT_DB_DIR/"images"),
+#     name="images",
+# )
+
+# app.mount(
+#     "/media/audio",
+#     StaticFiles(directory=DEFAULT_DB_DIR/"auditory cues"),
+#     name="audio",
+# )
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return f"""
