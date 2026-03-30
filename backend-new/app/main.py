@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.cue_service import build_cue_decision
@@ -124,6 +125,20 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="ADAD Python Backend Server", lifespan=lifespan)
+
+
+# Create public URL for image and audio cues 
+app.mount(
+    "/media/images",
+    StaticFiles(directory=settings.images_dir),
+    name="images",
+)
+
+app.mount(
+    "/media/audio",
+    StaticFiles(directory=settings.auditory_cue_dir),
+    name="audio",
+)
 
 
 @app.get("/health")

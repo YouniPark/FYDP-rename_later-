@@ -3,7 +3,17 @@ from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import socket
 
+def get_lan_ip() -> str:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -202,5 +212,15 @@ class Settings(BaseSettings):
     memory_window_seconds: float = 5.0
     memory_min_votes: int = 2
     memory_majority_ratio: float = 0.6
+
+    # ------------------------------------------------------------------
+    # Cues to URL
+    # ------------------------------------------------------------------
+    public_url: str = Field(
+        default_factory=lambda: f"http://{get_lan_ip()}:8000/media",
+        alias="PUBLIC_URL",
+    )
+
+    use_url: bool = Field(default=True, alias="USE_URL")
 
 settings = Settings()

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import base64
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from app.config import settings
 from WebServer.setting.setting_config import (
@@ -17,6 +19,8 @@ logger = logging.getLogger(__name__)
 SETTINGS_PATH = settings.setting_dir / "settings.json"
 PEOPLE_PATH = settings.people_json_path
 VALID_VOICE_TYPES = {"male", "female"}
+PUBLIC_URL = settings.public_url.rstrip("/") 
+USE_URL = settings.use_url # change this to true if you want to send URL (image and auditory cues) instead of decoded bytes 
 
 
 def load_json(json_path: Path) -> Any:
@@ -89,6 +93,10 @@ def resolve_audio_path(person: dict[str, Any], people_id: int, voice_type: str) 
     return settings.auditory_cue_dir / Path(audio_rel_path).name
 
 
+def build_url(subfolder:str, file_path:Path) -> str:
+    filename = quote(file_path.name)
+    return f"{PUBLIC_URL}/{subfolder}/{filename}"
+
 def get_person_cue_data(people_id: int) -> dict[str, Any]:
     # --- Local-cues mode: just return the ID, Unity loads everything locally ---
     if settings.use_local_cues:
@@ -118,10 +126,20 @@ def get_person_cue_data(people_id: int) -> dict[str, Any]:
         cues["relationship"] = person.get("relationship")
 
     if "image" in cue_selection:
-        cues["image"] = read_binary_file(resolve_image_path(person, people_id))
-
+        if USEURL:
+            cues["image"] = build_url("images", resolve_image_path(person, people_id))
+        else:
+            cues["image"] = base64.b64encode(
+                read_binary_file(resolve_image_path(person, people_id))
+            ).decode()
+    
     if "audio" in cue_selection:
-        cues["audio"] = read_binary_file(resolve_audio_path(person, people_id, voice_type))
+        if USEURL:
+            cues["audio"] = build_url("audio", resolve_audio_path(person, people_id, voice_type))
+        else:
+            cues["audio"] = base64.b64encode(
+                read_binary_file(resolve_audio_path(person, people_id, voice_type))
+            ).decode()
 
     return {
         "people_id": people_id,

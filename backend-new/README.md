@@ -137,13 +137,18 @@ If those imports are missing, the backend still starts but raises `NotImplemente
 pip install -r requirements.txt
 ```
 
-3. Start the backend:
+3. Start the WebServer
+```bash
+uvicorn WebServer.main:app --host 0.0.0.0 --port 8000
+```
+
+4. Start the backend:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-4. AR startup flow:
+5. AR startup flow:
    - Connect to `WS /ws/ar` to receive `db_sync` and real-time cue decisions.
    - Fetch `GET /db/face` and `GET /db/cue` for latest manifests.
    - Send events to `POST /events`.
