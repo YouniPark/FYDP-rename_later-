@@ -264,7 +264,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4659f10a365a8ea449eaeeccbe7345cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FaceVideoStreamSender
-  enableStreaming: 1
+  enableStreaming: 0
   videoTransport: 0
   sharedConnectionManager: {fileID: 912688755}
   faceDetector: {fileID: 94743640}
@@ -1027,6 +1027,11 @@ PrefabInstance:
       propertyPath: m_PreviewTimeScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1923237937242848528, guid: 96d35ce26849f5340ab5ac09b47d1ed9,
+        type: 3}
+      propertyPath: m_Parameters.widthMultiplier
+      value: 0.011256528
+      objectReference: {fileID: 0}
     - target: {fileID: 6470841429240247560, guid: 96d35ce26849f5340ab5ac09b47d1ed9,
         type: 3}
       propertyPath: m_Name
@@ -1249,7 +1254,7 @@ PrefabInstance:
         type: 3}
       propertyPath: proxyDefaultMaterial
       value: 
-      objectReference: {fileID: 2100000, guid: 1792ce7e07459496399d34cab0f6a8a9, type: 2}
+      objectReference: {fileID: 2100000, guid: e2dd623461002b648a48d3d532888bb4, type: 2}
     - target: {fileID: 4645241341020615907, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}
       propertyPath: visualizeFaceProxies
@@ -1259,7 +1264,7 @@ PrefabInstance:
         type: 3}
       propertyPath: proxyHighlightMaterial
       value: 
-      objectReference: {fileID: 2100000, guid: 132f927385f141d4587baaa217bcb4f5, type: 2}
+      objectReference: {fileID: 2100000, guid: a79df217c406a36498845ed964cf3c77, type: 2}
     - target: {fileID: 7845006771811331689, guid: 0048f8e252aaa5240ace72dfc8b1f329,
         type: 3}
       propertyPath: m_LocalPosition.x

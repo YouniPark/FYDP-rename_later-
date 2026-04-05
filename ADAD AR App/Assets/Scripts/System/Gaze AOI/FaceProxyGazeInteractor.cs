@@ -67,6 +67,8 @@ public class FaceProxyGazeInteractor : MonoBehaviour
             source_id: "FaceProxyGazeInteractor"
         );
         _lslOutlet = new StreamOutlet(streamInfo);
+
+        Debug.Log("[FaceProxyGazeInteractor] Created LSL outlet for fixation events with stream name 'FixationEvents' and source ID 'FaceProxyGazeInteractor'.");
     }
 
     private void Update()
