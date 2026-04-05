@@ -87,11 +87,20 @@ async def lifespan(_: FastAPI):
             event_id, result["is_unfamiliar"], voted_face,
         )
 
+        # When the override is active, treat any recognised person as unfamiliar so
+        # that cue delivery fires regardless of the EEG classifier verdict.  The
+        # real EEG result is preserved in `result` and is still written to the CSV.
+        effective_is_unfamiliar = (
+            True
+            if state.settings.override_send_cue_for_known_faces and voted_face is not None
+            else result["is_unfamiliar"]
+        )
+
         decision = await build_cue_decision(
             state,
             event_id=event_id,
             event_lsl_timestamp=lsl_timestamp,
-            is_unfamiliar=result["is_unfamiliar"],
+            is_unfamiliar=effective_is_unfamiliar,
             face_id=voted_face,
         )
 
@@ -100,6 +109,13 @@ async def lifespan(_: FastAPI):
             "Event %s: cue decision — send_cue=%s  face_id=%s  is_unfamiliar=%s",
             event_id, decision.send_cue, decision.face_id, decision.is_unfamiliar,
         )
+
+        await state.fixation_decision_logger.log_event(
+            face_id=voted_face,
+            eeg_result=result,
+            send_cue=bool(decision.send_cue),
+        )
+
         state.latest_cue_decision_json = decision_json
         await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
 
@@ -163,11 +179,17 @@ async def post_event(event: EventIn) -> dict[str, Any]:
         event.event_id, result["is_unfamiliar"], voted_face,
     )
 
+    effective_is_unfamiliar = (
+        True
+        if state.settings.override_send_cue_for_known_faces and voted_face is not None
+        else result["is_unfamiliar"]
+    )
+
     decision = await build_cue_decision(
         state,
         event_id=event.event_id,
         event_lsl_timestamp=event.event_lsl_timestamp,
-        is_unfamiliar=result["is_unfamiliar"],
+        is_unfamiliar=effective_is_unfamiliar,
         face_id=voted_face,
     )
 
