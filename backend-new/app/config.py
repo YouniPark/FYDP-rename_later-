@@ -122,13 +122,13 @@ class Settings(BaseSettings):
     )
 
     # Path to a saved MNE ICA .fif file; leave unset to skip ICA removal
-    eeg_ica_path: Optional[str] = Field(default='./data/models/eeg-ica.fif', alias="EEG_ICA_PATH")
+    eeg_ica_path: Optional[str] = Field(default='./data/models/final_ica.fif', alias="EEG_ICA_PATH")
 
     # Whether to apply REST re-referencing
     eeg_apply_rest: bool = Field(default=True, alias="EEG_APPLY_REST")
 
     # Path to a pre-computed forward solution for REST; required when eeg_apply_rest=True
-    eeg_forward_path: Optional[str] = Field(default='./data/models/rest-fwd.fif', alias="EEG_FORWARD_PATH")
+    eeg_forward_path: Optional[str] = Field(default='./data/models/final_rest_fwd.fif', alias="EEG_FORWARD_PATH")
 
     # Baseline correction window (seconds relative to event).
     # eeg_baseline_tmin=None means "from epoch start".
@@ -146,11 +146,10 @@ class Settings(BaseSettings):
     eeg_buffer_poll_timeout: float = Field(default=10.0, alias="EEG_BUFFER_POLL_TIMEOUT")
 
     # Peak-to-peak artifact rejection threshold in microvolts
-    eeg_amp_thresh_uv: float = Field(default=200.0, alias="EEG_AMP_THRESH_UV")
+    eeg_amp_thresh_uv: float = Field(default=1000.0, alias="EEG_AMP_THRESH_UV")
 
     # When True, proceed to feature extraction and ML classification even if the epoch is
     # rejected by the artifact check. Bad channels are imputed from the group average (N250/P300).
-    # Set IGNORE_TRIAL_REJECTION=true in .env to enable.
     ignore_trial_rejection: bool = Field(default=False, alias="IGNORE_TRIAL_REJECTION")
 
     # Path to the trained SVM model and fitted scaler (.joblib files)
