@@ -25,6 +25,19 @@ class FaceServiceSettings(BaseSettings):
     max_frame_queue: int = Field(default=32, alias="MAX_FRAME_QUEUE", ge=1)
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
+    # ------------------------------------------------------------------
+    # Backend toggle — set FACE_RECOGNIZER_BACKEND=arcface to use ArcFace
+    # ------------------------------------------------------------------
+
+    recognizer_backend: str = Field(default="knn", alias="FACE_RECOGNIZER_BACKEND")
+    """Which recognition backend to use.  Accepted values: ``knn`` (default),
+    ``arcface``.  Can be overridden via the ``FACE_RECOGNIZER_BACKEND``
+    environment variable or ``.env`` file."""
+
+    # ------------------------------------------------------------------
+    # KNN backend paths
+    # ------------------------------------------------------------------
+
     mapping_csv_path: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[3]
         / "facial-recognition-DNN"
@@ -66,6 +79,56 @@ class FaceServiceSettings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parents[3] / "poc" / "res10_300x300_ssd.caffemodel",
         alias="FACE_DETECTOR_CAFFEMODEL_FALLBACK",
     )
+
+    # ------------------------------------------------------------------
+    # ArcFace backend settings
+    # ------------------------------------------------------------------
+
+    arcface_model_name: str = Field(default="buffalo_l", alias="ARCFACE_MODEL_NAME")
+    """InsightFace model pack name.  ``buffalo_l`` (highest accuracy) is the
+    default; lighter alternatives are ``buffalo_m`` and ``buffalo_sc``.
+    Set ``ARCFACE_MODEL_NAME`` in ``.env`` to override."""
+
+    arcface_similarity_threshold: float = Field(
+        default=0.35, alias="ARCFACE_SIMILARITY_THRESHOLD", ge=0.0, le=1.0
+    )
+    """Minimum cosine similarity to accept a face as a known identity.
+    Faces scoring below this threshold are labelled *Unknown*.
+    Typical range: 0.30–0.45.  Set ``ARCFACE_SIMILARITY_THRESHOLD`` in
+    ``.env`` to tune."""
+
+    arcface_model_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2] / "data" / "insightface",
+        alias="ARCFACE_MODEL_DIR",
+    )
+    """Directory where InsightFace downloads / caches model weights.
+    Defaults to ``backend-new/data/insightface``.  Set
+    ``ARCFACE_MODEL_DIR`` in ``.env`` to use a shared model cache."""
+
+    arcface_embedding_store_path: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2]
+        / "data"
+        / "arcface_embeddings.pkl",
+        alias="ARCFACE_EMBEDDING_STORE",
+    )
+    """Path to the pickle file that stores enrolled ArcFace embeddings.
+    Created automatically on first enrollment.  Set
+    ``ARCFACE_EMBEDDING_STORE`` in ``.env`` to override."""
+
+    # ------------------------------------------------------------------
+    # Shared / convenience paths used by both backends
+    # ------------------------------------------------------------------
+
+    people_json_path: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[3]
+        / "WebServer"
+        / "database"
+        / "PeopleDatabase"
+        / "people.json",
+        alias="PEOPLE_JSON_PATH",
+    )
+    """Path to people.json (shared with the main backend).  Used by the
+    standalone face service for debug identity lookups."""
 
 
 face_service_settings = FaceServiceSettings()
