@@ -28,7 +28,7 @@ import os
 import threading
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 import numpy as np
 
 
@@ -70,12 +70,11 @@ def ml_classifier(
     scaler: Optional[object] = None,
     model_path: Optional[str] = None,
     scaler_path: Optional[str] = None,
-    scale_divisor: Optional[float] = None,
+    scale_divisor: Optional[float] = 200,
     raw_csv_path: Optional[str] = None,
     scaled_csv_path: Optional[str] = None,
     feature_names: "Optional[Sequence[str]]" = None,
-    return_details: bool = False,
-) -> bool | tuple[bool, dict[str, Any]]:
+) -> bool:
     """
     Inputs
     ------
@@ -100,12 +99,6 @@ def ml_classifier(
         True if predicted unfamiliar/unrecognized, else False.
     """
     x = np.asarray(features, dtype=float).reshape(1, -1)
-    details: dict[str, Any] = {
-        "analysis_performed": False,
-        "score": None,
-        "threshold": None,
-        "score_kind": None,
-    }
 
     # Early check for NaN or Inf in input features
     if not np.all(np.isfinite(x)):
@@ -117,8 +110,7 @@ def ml_classifier(
             "Treating as unfamiliar.",
             nan_count, inf_count, x.shape,
         )
-        is_unfamiliar = True
-        return (is_unfamiliar, details) if return_details else is_unfamiliar
+        return True  # Default to unfamiliar if input is invalid
 
     # logger.debug(
     #     "ml_classifier: input features shape=%s, range=[%.3f, %.3f]",
@@ -182,35 +174,16 @@ def ml_classifier(
     y_pred = model.predict(x_scaled)
     logger.debug("ml_classifier: model.predict returned %s", y_pred)
 
-    details["analysis_performed"] = True
-
     # Log decision scores or probabilities when available
     if hasattr(model, "decision_function"):
         try:
             scores = model.decision_function(x_scaled)
-            score_value = float(np.ravel(scores)[0])
-            details["score"] = score_value
-            details["threshold"] = 0.0
-            details["score_kind"] = "decision_function"
             logger.debug("ml_classifier: decision_function scores=%s", scores)
         except Exception:
             pass
     if hasattr(model, "predict_proba"):
         try:
             proba = model.predict_proba(x_scaled)
-            if details["score"] is None:
-                proba_arr = np.asarray(proba)
-                if proba_arr.ndim == 2 and proba_arr.shape[1] > 0:
-                    classes = list(getattr(model, "classes_", []))
-                    positive_idx = 1 if proba_arr.shape[1] > 1 else 0
-                    for idx, cls in enumerate(classes):
-                        cls_str = str(cls).strip().lower()
-                        if cls_str in {"1", "true", "unf", "unfamiliar", "unrecognized"}:
-                            positive_idx = idx
-                            break
-                    details["score"] = float(proba_arr[0, positive_idx])
-                    details["threshold"] = 0.5
-                    details["score_kind"] = "predict_proba"
             logger.debug("ml_classifier: predict_proba=%s  classes=%s", proba, getattr(model, 'classes_', '?'))
         except Exception:
             pass
@@ -230,4 +203,4 @@ def ml_classifier(
     if scaled_csv_path:
         _append_feature_row(scaled_csv_path, x_scaled, is_unfamiliar, feature_names=feature_names)
 
-    return (is_unfamiliar, details) if return_details else is_unfamiliar
+    return is_unfamiliar

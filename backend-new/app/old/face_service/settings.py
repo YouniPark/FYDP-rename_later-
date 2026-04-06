@@ -29,7 +29,7 @@ class FaceServiceSettings(BaseSettings):
     # Backend toggle — set FACE_RECOGNIZER_BACKEND=arcface to use ArcFace
     # ------------------------------------------------------------------
 
-    recognizer_backend: str = Field(default="arcface", alias="FACE_RECOGNIZER_BACKEND")
+    recognizer_backend: str = Field(default="knn", alias="FACE_RECOGNIZER_BACKEND")
     """Which recognition backend to use.  Accepted values: ``knn`` (default),
     ``arcface``.  Can be overridden via the ``FACE_RECOGNIZER_BACKEND``
     environment variable or ``.env`` file."""

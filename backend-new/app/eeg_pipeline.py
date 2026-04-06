@@ -30,21 +30,11 @@ except ImportError:
 async def eeg_connect_loop(state: AppState) -> None:
     stream_name = state.settings.eeg_lsl_stream_name
     retry_seconds = state.settings.eeg_lsl_retry_seconds
-    buffer_maintenance_interval = state.settings.eeg_buffer_poll_interval
     while True:
         # Only attempt connection when we don't already have a stream.
         current = await state.get_eeg_stream()
         if current is not None:
-            try:
-                # Keep draining the inlet in the background so pre-event history
-                # is already present before the first fixation event arrives.
-                await asyncio.to_thread(current.latest_timestamp)
-            except Exception:
-                logger.exception("EEG LSL: buffer maintenance failed; resetting stream")
-                await state.set_eeg_stream(None)
-                await asyncio.sleep(retry_seconds)
-                continue
-            await asyncio.sleep(buffer_maintenance_interval)
+            await asyncio.sleep(retry_seconds)
             continue
         try:
             stream = await asyncio.to_thread(connect_eeg, stream_name)
@@ -96,7 +86,6 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
                 "status": "ok",
                 "is_unfamiliar": True,
                 "reason": "eeg_stream_not_connected",
-                "ml_analyzed": False,
             }
         else:
             logger.info(
@@ -107,7 +96,6 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
                 "event_id": event_id,
                 "event_lsl_timestamp": event_lsl_timestamp,
                 "status": "no_eeg",
-                "ml_analyzed": False,
             }
         state.latest_eeg_result[event_id] = result
         return result
@@ -128,24 +116,10 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             if latest is not None and latest >= epoch_end_ts:
                 break
             if waited >= poll_timeout:
-                logger.warning(
-                    "EEG pipeline: timed out waiting for buffer coverage for event=%s "
-                    "(timeout=%.2fs, need_end_ts=%.6f, latest=%s); treating as unfamiliar",
-                    event_id,
-                    poll_timeout,
-                    epoch_end_ts,
-                    f"{latest:.6f}" if latest is not None else "<empty>",
+                raise RuntimeError(
+                    f"Timed out after {poll_timeout:.1f}s waiting for EEG buffer to reach "
+                    f"{epoch_end_ts:.3f} (latest={latest})"
                 )
-                result = {
-                    "event_id": event_id,
-                    "event_lsl_timestamp": event_lsl_timestamp,
-                    "status": "out_of_buffer_range",
-                    "is_unfamiliar": True,
-                    "reason": "buffer_poll_timeout",
-                    "ml_analyzed": False,
-                }
-                state.latest_eeg_result[event_id] = result
-                return result
             await asyncio.sleep(poll_interval)
             waited += poll_interval
 
@@ -171,10 +145,9 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             result = {
                 "event_id": event_id,
                 "event_lsl_timestamp": event_lsl_timestamp,
-                "status": "out_of_buffer_range",
+                "status": "ok",
                 "is_unfamiliar": True,
                 "reason": "insufficient_eeg_buffer_history",
-                "ml_analyzed": False,
             }
             state.latest_eeg_result[event_id] = result
             return result
@@ -204,7 +177,7 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             np.nanmin(features),
             np.nanmax(features),
         )
-        ml_output = await asyncio.to_thread(
+        is_unfamiliar = await asyncio.to_thread(
             ml_classifier,
             features,
             model_path=state.settings.eeg_model_path,
@@ -212,9 +185,7 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             raw_csv_path=state.settings.eeg_features_raw_csv_path if state.settings.eeg_save_erp_features else None,
             scaled_csv_path=state.settings.eeg_features_scaled_csv_path if state.settings.eeg_save_erp_features else None,
             feature_names=feature_names,
-            return_details=True,
         )
-        is_unfamiliar, ml_details = ml_output
         logger.info(
             "EEG pipeline: classifier result for event=%s — is_unfamiliar=%s",
             event_id,
@@ -225,10 +196,6 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             "event_lsl_timestamp": event_lsl_timestamp,
             "status": "ok",
             "is_unfamiliar": bool(is_unfamiliar),
-            "ml_analyzed": bool(ml_details.get("analysis_performed", False)),
-            "ml_score": ml_details.get("score"),
-            "ml_threshold": ml_details.get("threshold"),
-            "ml_score_kind": ml_details.get("score_kind"),
         }
         state.latest_eeg_result[event_id] = result
         return result
@@ -246,18 +213,10 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
             "status": "rejected",
             "is_unfamiliar": True,
             "bad_channels": exc.bad_channels,
-            "ml_analyzed": False,
         }
         state.latest_eeg_result[event_id] = result
         return result
     except Exception as exc:
-        reason = str(exc)
-        reason_lower = reason.lower()
-        is_buffer_range_error = (
-            "buffer margin too small" in reason_lower
-            or "no eeg samples in requested window" in reason_lower
-            or "buffer covers" in reason_lower
-        )
         logger.exception(
             "EEG event pipeline failed for event %s — treating as unfamiliar",
             event_id,
@@ -266,10 +225,9 @@ async def run_eeg_event_pipeline(state: AppState, event_id: str, event_lsl_times
         result = {
             "event_id": event_id,
             "event_lsl_timestamp": event_lsl_timestamp,
-            "status": "out_of_buffer_range" if is_buffer_range_error else "error",
+            "status": "error",
             "is_unfamiliar": True,
-            "reason": reason,
-            "ml_analyzed": False,
+            "reason": str(exc),
         }
         state.latest_eeg_result[event_id] = result
         return result

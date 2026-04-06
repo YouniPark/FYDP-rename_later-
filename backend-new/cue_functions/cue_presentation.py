@@ -159,7 +159,7 @@ def cue_preparation(is_unfamiliar: bool, people_id: int | str | None) -> tuple[b
             logger.warning("cue_preparation: could not convert people_id=%r to int — treating as None", people_id)
             people_id = None
 
-    logger.debug(
+    logger.info(
         "cue_preparation: is_unfamiliar=%s  people_id=%s",
         is_unfamiliar, people_id,
     )

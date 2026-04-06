@@ -2,7 +2,6 @@ import asyncio
 from typing import Any
 
 from app.config import Settings
-from app.fixation_decision_logger import FixationDecisionCsvLogger
 from app.storage.db import LocalDB
 from app.storage.models import CueRecord, FaceRecord
 
@@ -30,7 +29,6 @@ class AppState:
         self.current_face_id: str | None = None
         self.latest_eeg_result: dict[str, Any] = {}
         self.frame_queue: asyncio.Queue[tuple[float, bytes]] = asyncio.Queue(maxsize=settings.max_frame_queue)
-        self.fixation_decision_logger = FixationDecisionCsvLogger(settings)
         # Latest processed cue decision — read by GET /cue/latest for polling clients.
         self.latest_cue_decision_json: dict[str, Any] | None = None
 
