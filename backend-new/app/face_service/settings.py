@@ -25,18 +25,14 @@ class FaceServiceSettings(BaseSettings):
     max_frame_queue: int = Field(default=32, alias="MAX_FRAME_QUEUE", ge=1)
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    # ------------------------------------------------------------------
     # Backend toggle — set FACE_RECOGNIZER_BACKEND=arcface to use ArcFace
-    # ------------------------------------------------------------------
 
-    recognizer_backend: str = Field(default="knn", alias="FACE_RECOGNIZER_BACKEND")
-    """Which recognition backend to use.  Accepted values: ``knn`` (default),
-    ``arcface``.  Can be overridden via the ``FACE_RECOGNIZER_BACKEND``
+    recognizer_backend: str = Field(default="arcface", alias="FACE_RECOGNIZER_BACKEND")
+    """Which recognition backend to use.  Accepted values: ``knn``,
+    ``arcface`` (default).  Can be overridden via the ``FACE_RECOGNIZER_BACKEND``
     environment variable or ``.env`` file."""
 
-    # ------------------------------------------------------------------
     # KNN backend paths
-    # ------------------------------------------------------------------
 
     mapping_csv_path: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[3]
@@ -80,9 +76,7 @@ class FaceServiceSettings(BaseSettings):
         alias="FACE_DETECTOR_CAFFEMODEL_FALLBACK",
     )
 
-    # ------------------------------------------------------------------
     # ArcFace backend settings
-    # ------------------------------------------------------------------
 
     arcface_model_name: str = Field(default="buffalo_l", alias="ARCFACE_MODEL_NAME")
     """InsightFace model pack name.  ``buffalo_l`` (highest accuracy) is the
@@ -90,7 +84,7 @@ class FaceServiceSettings(BaseSettings):
     Set ``ARCFACE_MODEL_NAME`` in ``.env`` to override."""
 
     arcface_similarity_threshold: float = Field(
-        default=0.35, alias="ARCFACE_SIMILARITY_THRESHOLD", ge=0.0, le=1.0
+        default=0.5, alias="ARCFACE_SIMILARITY_THRESHOLD", ge=0.0, le=1.0
     )
     """Minimum cosine similarity to accept a face as a known identity.
     Faces scoring below this threshold are labelled *Unknown*.
@@ -115,9 +109,7 @@ class FaceServiceSettings(BaseSettings):
     Created automatically on first enrollment.  Set
     ``ARCFACE_EMBEDDING_STORE`` in ``.env`` to override."""
 
-    # ------------------------------------------------------------------
-    # Shared / convenience paths used by both backends
-    # ------------------------------------------------------------------
+    # Shared paths used by both k nn and aacrface
 
     people_json_path: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[3]

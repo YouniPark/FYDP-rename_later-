@@ -7,9 +7,9 @@ import logging
 import cv2
 import numpy as np
 
-from embedding_store import ArcFaceEmbeddingStore
-from recognizer_runtime import FramePrediction
-from settings import FaceServiceSettings
+from app.face_service.embedding_store import ArcFaceEmbeddingStore
+from app.face_service.recognizer_runtime import FramePrediction
+from app.face_service.settings import FaceServiceSettings
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +104,6 @@ class ArcFaceRuntimeRecognizer:
         face_id, score = self.store.find_closest(
             embedding, self.settings.arcface_similarity_threshold
         )
-
-        print(f"[DEBUG] Predicted: {face_id}, Score: {score:.3f}, Threshold: {self.settings.arcface_similarity_threshold}")
-        
         if face_id is None:
             return FramePrediction(name="Unknown", confidence=float(max(score, 0.0)))
 
@@ -117,14 +114,6 @@ class ArcFaceRuntimeRecognizer:
     # ------------------------------------------------------------------
 
     def enroll_face(self, face_id: str, image_bgr: np.ndarray) -> bool:
-        """Extract an ArcFace embedding from *image_bgr* and store it for *face_id*.
-    
-        Improved version:
-        - Upscales the frame to help detect smaller faces
-        - Checks detection confidence (det_score)
-        - Returns False only if no face passes threshold
-        - Can log multiple faces if needed
-        """
         import cv2
         import numpy as np
     
@@ -171,3 +160,34 @@ class ArcFaceRuntimeRecognizer:
         )
     
         return True
+        # """Extract an ArcFace embedding from *image_bgr* and store it for *face_id*.
+
+        # Parameters
+        # ----------
+        # face_id:
+        #     The identifier under which the embedding is stored.  Should match
+        #     the ``face_id`` in ``face_db``.
+        # image_bgr:
+        #     BGR image containing the person's face (any size).
+
+        # Returns
+        # -------
+        # ``True`` on success, ``False`` when no face is detected in the image.
+        # """
+        # rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        # faces = self._app.get(rgb)
+        # if not faces:
+        #     logger.warning(
+        #         "ArcFace enrollment: no face detected for face_id=%s", face_id
+        #     )
+        #     return False
+
+        # primary = max(faces, key=lambda f: _bbox_area(f.bbox))
+        # self.store.upsert(str(face_id), np.asarray(primary.embedding, dtype=np.float32))
+        # logger.info(
+        #     "ArcFace enrolled face_id=%s  det_score=%.3f  store_size=%d",
+        #     face_id,
+        #     float(primary.det_score),
+        #     len(self.store),
+        # )
+        # return True
