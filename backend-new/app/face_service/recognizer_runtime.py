@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from settings import FaceServiceSettings
+from app.face_service.settings import FaceServiceSettings
 
 
 @dataclass
