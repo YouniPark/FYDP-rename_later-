@@ -36,14 +36,40 @@ class ArcFaceEmbeddingStore:
     # Persistence
     # ------------------------------------------------------------------
 
-    def _load(self) -> dict[str, np.ndarray]:
+    # def _load(self) -> dict[str, np.ndarray]:
+    #     if not self._path.exists():
+    #         return {}
+    #     try:
+    #         with self._path.open("rb") as fh:
+    #             data = pickle.load(fh)
+    #         if isinstance(data, dict):
+    #             return {str(k): np.asarray(v, dtype=np.float32) for k, v in data.items()}
+    #     except Exception:
+    #         logger.exception(
+    #             "ArcFaceEmbeddingStore: failed to load from %s — starting with empty store",
+    #             self._path,
+    #         )
+    #     return {}
+
+    def _load(self) -> dict[str, list[np.ndarray]]:
         if not self._path.exists():
             return {}
         try:
             with self._path.open("rb") as fh:
                 data = pickle.load(fh)
             if isinstance(data, dict):
-                return {str(k): np.asarray(v, dtype=np.float32) for k, v in data.items()}
+                result: dict[str, list[np.ndarray]] = {}
+                for k, v in data.items():
+                    arr = np.asarray(v, dtype=np.float32)
+                    if arr.ndim == 1:
+                        # Legacy format: single embedding per face_id
+                        result[str(k)] = [arr]
+                    elif arr.ndim == 2:
+                        # New format: list of embeddings → split rows into a list
+                        result[str(k)] = [arr[i] for i in range(arr.shape[0])]
+                    else:
+                        result[str(k)] = [arr.reshape(-1)]
+                return result
         except Exception:
             logger.exception(
                 "ArcFaceEmbeddingStore: failed to load from %s — starting with empty store",
@@ -121,27 +147,55 @@ class ArcFaceEmbeddingStore:
     # Matching
     # ------------------------------------------------------------------
 
+    # def find_closest(
+    #     self,
+    #     query: np.ndarray,
+    #     threshold: float,
+    # ) -> tuple[str | None, float]:
+    #     """Cosine-similarity nearest-neighbour search.
+
+    #     Parameters
+    #     ----------
+    #     query:
+    #         Raw (unnormalised) query embedding.
+    #     threshold:
+    #         Minimum cosine similarity to accept a match.  Values below this
+    #         are treated as *Unknown*.
+
+    #     Returns
+    #     -------
+    #     ``(face_id, score)`` of the closest stored embedding when
+    #     *score* ≥ *threshold*, or ``(None, best_score)`` otherwise.
+    #     Returns ``(None, 0.0)`` when the store is empty.
+    #     """
+    #     if not self._embeddings:
+    #         return None, 0.0
+
+    #     q = np.asarray(query, dtype=np.float32)
+    #     q_norm = np.linalg.norm(q)
+    #     if q_norm == 0:
+    #         return None, 0.0
+    #     q = q / q_norm
+
+    #     best_id: str | None = None
+    #     best_score: float = float("-inf")  # tracks best cosine similarity seen so far
+
+    #     for fid, emb in self._embeddings.items():
+    #         score = float(np.dot(q, emb))  # embeddings pre-normalised on store
+    #         if score > best_score:
+    #             best_score = score
+    #             best_id = fid
+
+    #     if best_score < threshold:
+    #         return None, best_score
+
+    #     return best_id, best_score
+
     def find_closest(
         self,
         query: np.ndarray,
         threshold: float,
     ) -> tuple[str | None, float]:
-        """Cosine-similarity nearest-neighbour search.
-
-        Parameters
-        ----------
-        query:
-            Raw (unnormalised) query embedding.
-        threshold:
-            Minimum cosine similarity to accept a match.  Values below this
-            are treated as *Unknown*.
-
-        Returns
-        -------
-        ``(face_id, score)`` of the closest stored embedding when
-        *score* ≥ *threshold*, or ``(None, best_score)`` otherwise.
-        Returns ``(None, 0.0)`` when the store is empty.
-        """
         if not self._embeddings:
             return None, 0.0
 
@@ -152,13 +206,14 @@ class ArcFaceEmbeddingStore:
         q = q / q_norm
 
         best_id: str | None = None
-        best_score: float = float("-inf")  # tracks best cosine similarity seen so far
+        best_score: float = float("-inf")
 
-        for fid, emb in self._embeddings.items():
-            score = float(np.dot(q, emb))  # embeddings pre-normalised on store
-            if score > best_score:
-                best_score = score
-                best_id = fid
+        for fid, emb_list in self._embeddings.items():
+            for emb in emb_list:
+                score = float(np.dot(q, emb))
+                if score > best_score:
+                    best_score = score
+                    best_id = fid
 
         if best_score < threshold:
             return None, best_score

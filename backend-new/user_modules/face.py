@@ -11,7 +11,9 @@ from app.face_service.recognizer_runtime import FaceRuntimeRecognizer
 from app.face_service.settings import face_service_settings
 
 
-# recognizer helpers
+# ------------------------------------------------------------------
+# Recognizer singletons (created lazily on first use)
+# ------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
 def _knn_recognizer() -> FaceRuntimeRecognizer:
@@ -34,7 +36,9 @@ def _get_active_recognizer():
     return _knn_recognizer()
 
 
+# ------------------------------------------------------------------
 # KNN name → face_id resolution helpers
+# ------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
 def _name_to_people_id() -> dict[str, int]:
@@ -72,7 +76,9 @@ def _resolve_face_id(predicted_name: str, face_db: dict[str, Any]) -> str | None
     return None
 
 
+# ------------------------------------------------------------------
 # Primary recognition entry point (called from face_pipeline.py)
+# ------------------------------------------------------------------
 
 def dnn_face_recognition(frame: Any, face_db: dict[str, Any]) -> str | None:
     """Detect and identify the primary face in *frame*.
@@ -115,7 +121,9 @@ def dnn_face_recognition(frame: Any, face_db: dict[str, Any]) -> str | None:
     return resolved if resolved is not None else "stranger"
 
 
+# ------------------------------------------------------------------
 # ArcFace enrollment helpers (called from main.py endpoints)
+# ------------------------------------------------------------------
 
 def enroll_arcface_from_image_bytes(face_id: str, image_bytes: bytes) -> bool:
     """Decode *image_bytes* and enrol the face under *face_id* for ArcFace.
@@ -146,3 +154,4 @@ def enroll_arcface_from_image_path(face_id: str, image_path: str) -> bool:
     if img is None:
         return False
     return _arcface_recognizer().enroll_face(face_id, img)
+

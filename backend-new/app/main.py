@@ -365,7 +365,9 @@ async def get_data_file(path: str) -> FileResponse:
     return FileResponse(target)
 
 
+# ------------------------------------------------------------------
 # ArcFace enrollment endpoints
+# ------------------------------------------------------------------
 
 @app.post("/face/enroll/{face_id}")
 async def enroll_face(face_id: str) -> dict[str, Any]:
@@ -410,7 +412,9 @@ async def enroll_face(face_id: str) -> dict[str, Any]:
     return {"status": "ok", "face_id": face_id, "image_path": record.image_path}
 
 
+# ------------------------------------------------------------------
 # Performance benchmark endpoint
+# ------------------------------------------------------------------
 
 @app.get("/face/benchmark")
 async def face_benchmark() -> dict[str, Any]:
@@ -438,7 +442,8 @@ async def face_benchmark() -> dict[str, Any]:
     knn_total = 0
     arcface_total = 0
 
-    # initialise both recognisers inside the thread so we don't block event loop during model loading
+    # Lazily initialise both recognisers inside the thread so we don't block
+    # the event loop during model loading
     def _run_benchmark() -> list[dict[str, Any]]:
         nonlocal knn_correct, arcface_correct, knn_total, arcface_total
 
