@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import logging
+import time
 from typing import Any
 
 import cv2
@@ -8,6 +9,7 @@ import numpy as np
 
 from app.state import AppState
 from app.face_memory import face_memory_voter
+from app.face_service.settings import face_service_settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +42,31 @@ def _decode_jpeg(image_bytes: bytes) -> np.ndarray:
 
 
 async def face_recognition_loop(state: AppState, debug_publish=None) -> None:
+    last_inference_time = 0.0
+    min_interval = 1.0 / face_service_settings.inference_sample_fps
+
     while True:
         timestamp, image_bytes = await state.frame_queue.get()
         try:
+            # Always process the freshest frame available to reduce latency.
+            while not state.frame_queue.empty():
+                try:
+                    timestamp, image_bytes = state.frame_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+
             frame = await asyncio.to_thread(_decode_jpeg, image_bytes)
             async with state.face_db_lock:
                 face_db_view = {k: v.model_dump(mode="json") for k, v in state.face_db.items()}
 
+            # Rate-limit inference to avoid bottlenecking the pipeline.
+            elapsed = time.monotonic() - last_inference_time
+            if elapsed < min_interval:
+                await asyncio.sleep(min_interval - elapsed)
+
             face_id = await asyncio.to_thread(dnn_face_recognition, frame, face_db_view)
+            last_inference_time = time.monotonic()
+
             await state.set_current_face(face_id)
             vote = await face_memory_voter.add_detection(timestamp, face_id)
             # logger.info(

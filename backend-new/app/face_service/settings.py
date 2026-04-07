@@ -17,12 +17,12 @@ class FaceServiceSettings(BaseSettings):
     host: str = Field(default="0.0.0.0", alias="FACE_SERVICE_HOST")
     port: int = Field(default=8000, alias="FACE_SERVICE_PORT", ge=1, le=65535)
 
-    inference_sample_fps: float = Field(default=10.0, alias="INFERENCE_SAMPLE_FPS", gt=0.0)
-    memory_window_seconds: float = Field(default=2.0, alias="MEMORY_WINDOW_SECONDS", gt=0.0)
+    inference_sample_fps: float = Field(default=5.0, alias="INFERENCE_SAMPLE_FPS", gt=0.0)
+    memory_window_seconds: float = Field(default=1.0, alias="MEMORY_WINDOW_SECONDS", gt=0.0)
     unknown_threshold: float = Field(default=0.5, alias="UNKNOWN_THRESHOLD", ge=0.0, le=1.0)
     detector_conf_threshold: float = Field(default=0.7, alias="DETECTOR_CONF_THRESHOLD", ge=0.0, le=1.0)
 
-    max_frame_queue: int = Field(default=32, alias="MAX_FRAME_QUEUE", ge=1)
+    max_frame_queue: int = Field(default=4, alias="MAX_FRAME_QUEUE", ge=1)
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     # ------------------------------------------------------------------
@@ -114,6 +114,23 @@ class FaceServiceSettings(BaseSettings):
     """Path to the pickle file that stores enrolled ArcFace embeddings.
     Created automatically on first enrollment.  Set
     ``ARCFACE_EMBEDDING_STORE`` in ``.env`` to override."""
+
+    arcface_det_size: int = Field(default=320, alias="ARCFACE_DET_SIZE", ge=160, le=2048)
+    """RetinaFace detector input size used by InsightFace ``prepare``.
+    Lower values (for example 320 or 480) reduce latency at the cost of
+    small-face detection quality."""
+
+    arcface_max_input_dim: int = Field(default=480, alias="ARCFACE_MAX_INPUT_DIM", ge=0, le=4096)
+    """Maximum frame dimension fed to ArcFace inference.
+    When > 0, larger frames are downscaled before detection/embedding.
+    Set to 0 to disable downscaling."""
+
+    arcface_execution_providers: str = Field(
+        default="CUDAExecutionProvider,CPUExecutionProvider",
+        alias="ARCFACE_EXECUTION_PROVIDERS",
+    )
+    """Comma-separated ONNX Runtime providers, in priority order.
+    Example: ``CUDAExecutionProvider,CPUExecutionProvider``."""
 
     # ------------------------------------------------------------------
     # Shared / convenience paths used by both backends
