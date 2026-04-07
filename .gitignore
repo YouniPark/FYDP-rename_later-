@@ -78,3 +78,6 @@ exp*.xdf
 *experiment*.xdf
 *Experiment_Data*.json
 .DS_Store
+
+# Deprecated files
+old/
