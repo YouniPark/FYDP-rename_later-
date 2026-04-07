@@ -60,13 +60,21 @@ class ArcFaceRuntimeRecognizer:
         self.settings = settings
         self.store = embedding_store
 
+        providers = [
+            provider.strip()
+            for provider in settings.arcface_execution_providers.split(",")
+            if provider.strip()
+        ]
+        if not providers:
+            providers = ["CPUExecutionProvider"]
+
         self._app = FaceAnalysis(
             name=settings.arcface_model_name,
             root=str(settings.arcface_model_dir),
-            providers=["CPUExecutionProvider"],
+            providers=providers,
         )
         # ctx_id=-1 → CPU inference; set to 0 for CUDA GPU
-        self._app.prepare(ctx_id=-1, det_size=(640, 640))
+        self._app.prepare(ctx_id=-1, det_size=(settings.arcface_det_size, settings.arcface_det_size))
 
         logger.info(
             "ArcFaceRuntimeRecognizer ready — model=%s  enrolled=%d  threshold=%.2f",
@@ -93,7 +101,19 @@ class ArcFaceRuntimeRecognizer:
             No face detected in the frame.
         """
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        faces = self._app.get(rgb)
+
+        max_dim = int(self.settings.arcface_max_input_dim)
+        if max_dim > 0:
+            h, w = rgb.shape[:2]
+            largest_side = max(h, w)
+            if largest_side > max_dim:
+                scale = float(max_dim) / float(largest_side)
+                rgb = cv2.resize(rgb, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+
+        try:
+            faces = self._app.get(rgb, max_num=1)
+        except TypeError:
+            faces = self._app.get(rgb)
         if not faces:
             return FramePrediction(name=None, confidence=None)
 

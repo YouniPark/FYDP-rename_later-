@@ -24,8 +24,8 @@ import cv2
 logger = logging.getLogger(__name__)
 
 _DEVICE_INDEX = int(os.environ.get("WEBCAM_DEVICE_INDEX", "0"))
-_FPS = float(os.environ.get("WEBCAM_FPS", "15"))
-_JPEG_QUALITY = int(os.environ.get("WEBCAM_JPEG_QUALITY", "85"))
+_FPS = float(os.environ.get("WEBCAM_FPS", "10"))
+_JPEG_QUALITY = int(os.environ.get("WEBCAM_JPEG_QUALITY", "70"))
 _FRAME_INTERVAL = 1.0 / max(_FPS, 1.0)
 
 
