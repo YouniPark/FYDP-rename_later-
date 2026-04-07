@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import time
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -88,11 +87,20 @@ async def lifespan(_: FastAPI):
             event_id, result["is_unfamiliar"], voted_face,
         )
 
+        # When the override is active, treat any recognised person as unfamiliar so
+        # that cue delivery fires regardless of the EEG classifier verdict.  The
+        # real EEG result is preserved in `result` and is still written to the CSV.
+        effective_is_unfamiliar = (
+            True
+            if state.settings.override_send_cue_for_known_faces and voted_face is not None
+            else result["is_unfamiliar"]
+        )
+
         decision = await build_cue_decision(
             state,
             event_id=event_id,
             event_lsl_timestamp=lsl_timestamp,
-            is_unfamiliar=result["is_unfamiliar"],
+            is_unfamiliar=effective_is_unfamiliar,
             face_id=voted_face,
         )
 
@@ -101,6 +109,13 @@ async def lifespan(_: FastAPI):
             "Event %s: cue decision — send_cue=%s  face_id=%s  is_unfamiliar=%s",
             event_id, decision.send_cue, decision.face_id, decision.is_unfamiliar,
         )
+
+        await state.fixation_decision_logger.log_event(
+            face_id=voted_face,
+            eeg_result=result,
+            send_cue=bool(decision.send_cue),
+        )
+
         state.latest_cue_decision_json = decision_json
         await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
 
@@ -164,11 +179,17 @@ async def post_event(event: EventIn) -> dict[str, Any]:
         event.event_id, result["is_unfamiliar"], voted_face,
     )
 
+    effective_is_unfamiliar = (
+        True
+        if state.settings.override_send_cue_for_known_faces and voted_face is not None
+        else result["is_unfamiliar"]
+    )
+
     decision = await build_cue_decision(
         state,
         event_id=event.event_id,
         event_lsl_timestamp=event.event_lsl_timestamp,
-        is_unfamiliar=result["is_unfamiliar"],
+        is_unfamiliar=effective_is_unfamiliar,
         face_id=voted_face,
     )
 
@@ -237,21 +258,7 @@ async def upload_face(face_id: str = Form(...), metadata_json: str = Form("{}"),
     image_path = state.db.store_face_image(face_id, raw, ext)
     async with state.face_db_lock:
         record = state.db.upsert_face_record(state.face_db, face_id, metadata, image_path)
-
-    # Auto-enroll for ArcFace backend using the uploaded image bytes
-    enrolled = False
-    try:
-        from user_modules.face import enroll_arcface_from_image_bytes
-        enrolled = await asyncio.to_thread(enroll_arcface_from_image_bytes, face_id, raw)
-    except Exception:
-        logger.exception(
-            "ArcFace auto-enrollment failed for face_id=%s (face record was saved; "
-            "retry enrollment via POST /face/enroll/%s)",
-            face_id,
-            face_id,
-        )
-
-    return {"status": "ok", "record": record.model_dump(mode="json"), "arcface_enrolled": enrolled}
+    return {"status": "ok", "record": record.model_dump(mode="json")}
 
 
 @app.post("/db/cue")
@@ -363,209 +370,3 @@ async def get_data_file(path: str) -> FileResponse:
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(target)
-
-
-# ------------------------------------------------------------------
-# ArcFace enrollment endpoints
-# ------------------------------------------------------------------
-
-@app.post("/face/enroll/{face_id}")
-async def enroll_face(face_id: str) -> dict[str, Any]:
-    """(Re-)enroll a face for ArcFace recognition using its stored image.
-
-    Looks up *face_id* in the face database, loads the saved enrollment image
-    from disk, and extracts a fresh ArcFace embedding.
-
-    Returns 404 when *face_id* is not in the database or has no stored image.
-    Returns 422 when the image cannot be decoded or no face is detected.
-    Returns 400 when the KNN backend is active (enrollment not applicable).
-    """
-    from user_modules.face import enroll_arcface_from_image_path
-    from app.face_service.settings import face_service_settings
-
-    if face_service_settings.recognizer_backend.lower() != "arcface":
-        raise HTTPException(
-            status_code=400,
-            detail="Enrollment endpoint is only available when FACE_RECOGNIZER_BACKEND=arcface",
-        )
-
-    async with state.face_db_lock:
-        record = state.face_db.get(face_id)
-
-    if record is None:
-        raise HTTPException(status_code=404, detail=f"face_id '{face_id}' not found in database")
-
-    if not record.image_path:
-        raise HTTPException(
-            status_code=422,
-            detail=f"face_id '{face_id}' has no stored image — upload an image first via POST /db/face",
-        )
-
-    abs_image_path = str(state.db.resolve_data_file(record.image_path))
-    ok = await asyncio.to_thread(enroll_arcface_from_image_path, face_id, abs_image_path)
-    if not ok:
-        raise HTTPException(
-            status_code=422,
-            detail=f"No face detected in the stored image for face_id '{face_id}'",
-        )
-
-    return {"status": "ok", "face_id": face_id, "image_path": record.image_path}
-
-
-# ------------------------------------------------------------------
-# Performance benchmark endpoint
-# ------------------------------------------------------------------
-
-@app.get("/face/benchmark")
-async def face_benchmark() -> dict[str, Any]:
-    """Compare KNN and ArcFace recognition on every enrolled face image.
-
-    For each face record that has a stored image the endpoint runs both
-    recognisers and records whether each one correctly identified the person,
-    its confidence score, and its per-frame latency.
-
-    The active backend (``FACE_RECOGNIZER_BACKEND``) is shown in the response
-    but both models are evaluated regardless so you can compare them.
-
-    Note: this endpoint is CPU-intensive and may take several seconds.
-    """
-    import cv2 as _cv2
-    from app.face_service.settings import face_service_settings
-    from app.face_service.recognizer_runtime import FaceRuntimeRecognizer
-
-    async with state.face_db_lock:
-        face_db_snapshot = dict(state.face_db)
-
-    results: list[dict[str, Any]] = []
-    knn_correct = 0
-    arcface_correct = 0
-    knn_total = 0
-    arcface_total = 0
-
-    # Lazily initialise both recognisers inside the thread so we don't block
-    # the event loop during model loading
-    def _run_benchmark() -> list[dict[str, Any]]:
-        nonlocal knn_correct, arcface_correct, knn_total, arcface_total
-
-        # -- KNN recogniser --
-        knn_rec = None
-        knn_error: str | None = None
-        try:
-            knn_rec = FaceRuntimeRecognizer(face_service_settings)
-        except Exception as exc:
-            knn_error = str(exc)
-
-        # -- ArcFace recogniser --
-        arcface_rec = None
-        arcface_error: str | None = None
-        try:
-            from app.face_service.arcface_recognizer import ArcFaceRuntimeRecognizer
-            from app.face_service.embedding_store import ArcFaceEmbeddingStore
-
-            store = ArcFaceEmbeddingStore(face_service_settings.arcface_embedding_store_path)
-            arcface_rec = ArcFaceRuntimeRecognizer(face_service_settings, store)
-        except Exception as exc:
-            arcface_error = str(exc)
-
-        per_face: list[dict[str, Any]] = []
-
-        # Pre-build the face_db_view once (used by KNN name→face_id resolution)
-        from user_modules.face import _resolve_face_id
-        face_db_view = {k: v.model_dump(mode="json") for k, v in face_db_snapshot.items()}
-
-        for face_id, record in face_db_snapshot.items():
-            if not record.image_path:
-                per_face.append({
-                    "face_id": face_id,
-                    "name": record.metadata.get("name"),
-                    "skipped": True,
-                    "reason": "no stored image",
-                })
-                continue
-
-            try:
-                abs_path = str(state.db.resolve_data_file(record.image_path))
-            except ValueError:
-                per_face.append({
-                    "face_id": face_id,
-                    "name": record.metadata.get("name"),
-                    "skipped": True,
-                    "reason": "invalid image path",
-                })
-                continue
-
-            frame = _cv2.imread(abs_path)
-            if frame is None:
-                per_face.append({
-                    "face_id": face_id,
-                    "name": record.metadata.get("name"),
-                    "skipped": True,
-                    "reason": "image could not be read",
-                })
-                continue
-
-            entry: dict[str, Any] = {
-                "face_id": face_id,
-                "name": record.metadata.get("name"),
-                "image_path": record.image_path,
-            }
-
-            # KNN
-            if knn_rec is not None:
-                t0 = time.perf_counter()
-                pred = knn_rec.predict_frame(frame)
-                latency_ms = (time.perf_counter() - t0) * 1000
-
-                resolved = None
-                if pred.name and pred.name != "Unknown":
-                    resolved = _resolve_face_id(pred.name, face_db_view)
-
-                correct = resolved == face_id
-                knn_total += 1
-                if correct:
-                    knn_correct += 1
-
-                entry["knn"] = {
-                    "predicted_name": pred.name,
-                    "predicted_face_id": resolved,
-                    "confidence": round(pred.confidence, 4) if pred.confidence is not None else None,
-                    "latency_ms": round(latency_ms, 1),
-                    "correct": correct,
-                }
-            else:
-                entry["knn"] = {"error": knn_error}
-
-            # ArcFace
-            if arcface_rec is not None:
-                t0 = time.perf_counter()
-                pred = arcface_rec.predict_frame(frame)
-                latency_ms = (time.perf_counter() - t0) * 1000
-
-                predicted_face_id = pred.name if pred.name not in (None, "Unknown") else None
-                correct = predicted_face_id == face_id
-                arcface_total += 1
-                if correct:
-                    arcface_correct += 1
-
-                entry["arcface"] = {
-                    "predicted_face_id": predicted_face_id,
-                    "confidence": round(pred.confidence, 4) if pred.confidence is not None else None,
-                    "latency_ms": round(latency_ms, 1),
-                    "correct": correct,
-                }
-            else:
-                entry["arcface"] = {"error": arcface_error}
-
-            per_face.append(entry)
-
-        return per_face
-
-    results = await asyncio.to_thread(_run_benchmark)
-
-    return {
-        "active_backend": face_service_settings.recognizer_backend,
-        "enrolled_faces": len(face_db_snapshot),
-        "knn_accuracy": round(knn_correct / knn_total, 4) if knn_total > 0 else None,
-        "arcface_accuracy": round(arcface_correct / arcface_total, 4) if arcface_total > 0 else None,
-        "results": results,
-    }
