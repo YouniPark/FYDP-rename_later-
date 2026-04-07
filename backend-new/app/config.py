@@ -96,14 +96,6 @@ class Settings(BaseSettings):
         alias="SETTING_DIR",
     )
 
-    # Face ID mapping CSV used to resolve people ID -> name.
-    face_id_mapping_csv_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[2]
-        / "facial-recognition-DNN"
-        / "face_id_mapping.csv",
-        alias="FACE_ID_MAPPING_CSV",
-    )
-
     # ------------------------------------------------------------------
     # EEG Config
     # ------------------------------------------------------------------
@@ -151,13 +143,14 @@ class Settings(BaseSettings):
     # How often to poll the EEG buffer while waiting for post-event data to arrive (seconds).
     eeg_buffer_poll_interval: float = Field(default=0.1, alias="EEG_BUFFER_POLL_INTERVAL")
     # Maximum total time to wait for the buffer to cover the epoch window before giving up (seconds).
-    eeg_buffer_poll_timeout: float = Field(default=3.0, alias="EEG_BUFFER_POLL_TIMEOUT")
+    eeg_buffer_poll_timeout: float = Field(default=10.0, alias="EEG_BUFFER_POLL_TIMEOUT")
 
     # Peak-to-peak artifact rejection threshold in microvolts
-    eeg_amp_thresh_uv: float = Field(default=1000.0, alias="EEG_AMP_THRESH_UV")
+    eeg_amp_thresh_uv: float = Field(default=200.0, alias="EEG_AMP_THRESH_UV")
 
     # When True, proceed to feature extraction and ML classification even if the epoch is
     # rejected by the artifact check. Bad channels are imputed from the group average (N250/P300).
+    # Set IGNORE_TRIAL_REJECTION=true in .env to enable.
     ignore_trial_rejection: bool = Field(default=False, alias="IGNORE_TRIAL_REJECTION")
 
     # Path to the trained SVM model and fitted scaler (.joblib files)
@@ -212,27 +205,6 @@ class Settings(BaseSettings):
     # When False, the backend reads settings.json and sends full cue data
     # (including binary image/audio bytes) in the payload.
     use_local_cues: bool = Field(default=True, alias="USE_LOCAL_CUES")
-
-    # When True, a cue is sent for any recognised person in the database regardless
-    # of the EEG familiarity decision.  EEG analysis still runs and the real result
-    # is still logged to CSV — this flag only overrides what is passed to the cue
-    # delivery layer.  Intended for testing cue delivery without relying on the EEG
-    # classifier output.
-    override_send_cue_for_known_faces: bool = Field(default=False, alias="OVERRIDE_SEND_CUE_FOR_KNOWN_FACES")
-
-    # ------------------------------------------------------------------
-    # Fixation-to-cue CSV logging
-    # ------------------------------------------------------------------
-
-    # When True, append one CSV row per fixation event that passes the inlet
-    # event filter and reaches cue decision.
-    save_fixation_decision_log: bool = Field(default=True, alias="SAVE_FIXATION_DECISION_LOG")
-
-    # CSV destination path for fixation -> EEG -> cue decision logging.
-    fixation_decision_log_csv_path: Path = Field(
-        default="./data/generated/fixation_decision_log.csv", 
-        alias="FIXATION_DECISION_LOG_CSV_PATH",
-    )
 
     # ------------------------------------------------------------------
     # Face Recognition Config

@@ -95,7 +95,15 @@ def _map_name_to_people_id(name: str | None) -> int | None:
         return None
     if name == "Unknown":
         return 0
-    return state.name_to_people_id.get(name)
+    # KNN backend returns person names; resolve via the CSV mapping
+    mapped = state.name_to_people_id.get(name)
+    if mapped is not None:
+        return mapped
+    # ArcFace backend returns face_ids directly (e.g. "1", "2")
+    try:
+        return int(name)
+    except (ValueError, TypeError):
+        return None
 
 
 async def _face_worker_loop() -> None:
@@ -107,10 +115,11 @@ async def _face_worker_loop() -> None:
         extra={
             "sample_fps": settings.inference_sample_fps,
             "memory_window": settings.memory_window_seconds,
+            "recognizer_backend": settings.recognizer_backend,
             "mapping_csv": str(settings.mapping_csv_path),
-            "recognizer_model": str(settings.recognizer_model_path),
-            "detector_prototxt": str(state.recognizer.detector_prototxt_path),
-            "detector_caffemodel": str(state.recognizer.detector_caffemodel_path),
+            "recognizer_model": str(getattr(state.recognizer, "recognizer_model_path", "N/A")),
+            "detector_prototxt": str(getattr(state.recognizer, "detector_prototxt_path", "N/A")),
+            "detector_caffemodel": str(getattr(state.recognizer, "detector_caffemodel_path", "N/A")),
         },
     )
 
