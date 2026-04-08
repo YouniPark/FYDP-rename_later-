@@ -218,7 +218,7 @@ class Settings(BaseSettings):
     # is still logged to CSV — this flag only overrides what is passed to the cue
     # delivery layer.  Intended for testing cue delivery without relying on the EEG
     # classifier output.
-    override_send_cue_for_known_faces: bool = Field(default=False, alias="OVERRIDE_SEND_CUE_FOR_KNOWN_FACES")
+    override_send_cue_for_known_faces: bool = Field(default=True, alias="OVERRIDE_SEND_CUE_FOR_KNOWN_FACES")
 
     # ------------------------------------------------------------------
     # Fixation-to-cue CSV logging
@@ -237,9 +237,12 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Face Recognition Config
     # ------------------------------------------------------------------
-    memory_window_seconds: float = 5.0
-    memory_min_votes: int = 2
-    memory_majority_ratio: float = 0.6
+    memory_window_seconds: float = Field(default=1.0, alias="MEMORY_WINDOW_SECONDS")
+    memory_min_votes: int = Field(default=2, alias="MEMORY_MIN_VOTES")
+    memory_majority_ratio: float = Field(default=0.6, alias="MEMORY_MAJORITY_RATIO")
+    inference_sample_fps: float = Field(default=5.0, alias="INFERENCE_SAMPLE_FPS", gt=0.0)
+    max_frame_queue: int = Field(default=4, alias="MAX_FRAME_QUEUE", ge=1)
+    recognizer_backend: str = Field(default="arcface", alias="FACE_RECOGNIZER_BACKEND")
 
     # ------------------------------------------------------------------
     # Cues to URL

@@ -264,7 +264,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4659f10a365a8ea449eaeeccbe7345cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FaceVideoStreamSender
-  enableStreaming: 0
+  enableStreaming: 1
   videoTransport: 0
   sharedConnectionManager: {fileID: 912688755}
   faceDetector: {fileID: 94743640}

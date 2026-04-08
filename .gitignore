@@ -63,6 +63,9 @@ coverage.xml
 # Profiling data
 .prof
 
+# Cache files
+*.lscache
+
 # Caffe model files
 *.prototxt
 *.caffemodel
