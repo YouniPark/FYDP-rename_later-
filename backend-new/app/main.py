@@ -101,6 +101,14 @@ async def lifespan(_: FastAPI):
             "Event %s: cue decision — send_cue=%s  face_id=%s  is_unfamiliar=%s",
             event_id, decision.send_cue, decision.face_id, decision.is_unfamiliar,
         )
+        try:
+            await state.fixation_decision_logger.log_event(
+                face_id=decision.face_id,
+                eeg_result=result,
+                send_cue=decision.send_cue,
+            )
+        except Exception:
+            logger.exception("Event %s: failed to append fixation decision CSV row", event_id)
         state.latest_cue_decision_json = decision_json
         await hub.broadcast_json({"type": "cue_decision", "payload": decision_json})
 
@@ -171,6 +179,15 @@ async def post_event(event: EventIn) -> dict[str, Any]:
         is_unfamiliar=result["is_unfamiliar"],
         face_id=voted_face,
     )
+
+    try:
+        await state.fixation_decision_logger.log_event(
+            face_id=decision.face_id,
+            eeg_result=result,
+            send_cue=decision.send_cue,
+        )
+    except Exception:
+        logger.exception("Event %s: failed to append fixation decision CSV row", event.event_id)
 
     payload = decision.model_dump(mode="json")
     state.latest_cue_decision_json = payload
