@@ -1,0 +1,39 @@
+timestamp_utc,person_id,person_name,eeg_status,ml_outcome,ml_score,familiarity_verdict,cue_decision,TRIAL,Correct,UTC Time
+2026-04-09T18:36:17.839549+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.701227,Unfamiliar,do not send,F9,0,18:36:17.839
+2026-04-09T18:36:28.525443+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,UF21,1,18:36:28.525
+2026-04-09T18:36:40.316880+00:00,stranger,UNKNOWN,processed,Unfamiliar,1.025735,Unfamiliar,do not send,F4,0,18:36:40.316
+2026-04-09T18:36:50.601252+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.183998,Unfamiliar,do not send,UF22,1,18:36:50.601
+2026-04-09T18:37:01.639363+00:00,stranger,UNKNOWN,processed,Familiar,-1.350145,Familiar,do not send,F1,1,18:37:01.639
+2026-04-09T18:37:17.536127+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.602696,Unfamiliar,do not send,UF23,1,18:37:17.536
+2026-04-09T18:37:24.473544+00:00,stranger,UNKNOWN,processed,Familiar,-0.614241,Familiar,do not send,F13,1,18:37:24.473
+2026-04-09T18:37:34.988617+00:00,stranger,UNKNOWN,disconnected,,,Unfamiliar,do not send,UF24,1,18:37:34.988
+2026-04-09T18:37:46.265604+00:00,stranger,UNKNOWN,processed,Familiar,-1.204788,Familiar,do not send,F9,1,18:37:46.265
+2026-04-09T18:37:56.918146+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,UF25,1,18:37:56.918
+2026-04-09T18:38:07.793361+00:00,stranger,UNKNOWN,processed,Familiar,-0.732643,Familiar,do not send,F14,1,18:38:07.793
+2026-04-09T18:38:30.152355+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,UF27,1,18:38:30.152
+2026-04-09T18:38:41.596149+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.880288,Unfamiliar,do not send,UF28,1,18:38:41.596
+2026-04-09T18:38:52.453332+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.357057,Unfamiliar,do not send,F5,0,18:38:52.453
+2026-04-09T18:39:05.545317+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.823013,Unfamiliar,do not send,UF29,1,18:39:05.545
+2026-04-09T18:39:16.850701+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.660591,Unfamiliar,do not send,UF30,1,18:39:16.850
+2026-04-09T18:39:27.981348+00:00,stranger,UNKNOWN,processed,Familiar,-0.334024,Familiar,do not send,F2,1,18:39:27.981
+2026-04-09T18:39:39.058488+00:00,stranger,UNKNOWN,disconnected,,,Unfamiliar,do not send,F15,0,18:39:39.058
+2026-04-09T18:39:49.515692+00:00,stranger,UNKNOWN,processed,Familiar,-0.530365,Familiar,do not send,UF31,0,18:39:49.515
+2026-04-09T18:40:00.736213+00:00,stranger,UNKNOWN,processed,Familiar,-1.018616,Familiar,do not send,F10,1,18:40:00.736
+2026-04-09T18:40:11.028851+00:00,stranger,UNKNOWN,processed,Unfamiliar,1.442122,Unfamiliar,do not send,UF32,1,18:40:11.028
+2026-04-09T18:40:22.117826+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,UF33,1,18:40:22.117
+2026-04-09T18:40:33.138582+00:00,stranger,UNKNOWN,processed,Familiar,-1.514602,Familiar,do not send,F6,1,18:40:33.138
+2026-04-09T18:40:44.182973+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.919567,Unfamiliar,do not send,UF34,1,18:40:44.182
+2026-04-09T18:40:55.751327+00:00,stranger,UNKNOWN,processed,Familiar,-0.293014,Familiar,do not send,F13,1,18:40:55.751
+2026-04-09T18:41:08.641320+00:00,stranger,UNKNOWN,processed,Unfamiliar,1.079391,Unfamiliar,do not send,UF35,1,18:41:08.641
+2026-04-09T18:41:16.415893+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,F3,0,18:41:16.415
+2026-04-09T18:41:27.167331+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.462381,Unfamiliar,do not send,F6,0,18:41:27.167
+2026-04-09T18:41:38.545067+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.034501,Unfamiliar,do not send,UF36,1,18:41:38.545
+2026-04-09T18:41:49.203867+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,UF37,1,18:41:49.203
+2026-04-09T18:42:00.093603+00:00,stranger,UNKNOWN,processed,Familiar,-1.754454,Familiar,do not send,F1,1,18:42:00.093
+2026-04-09T18:42:12.206138+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.674367,Unfamiliar,do not send,UF38,1,18:42:12.206
+2026-04-09T18:42:23.232437+00:00,stranger,UNKNOWN,processed,Unfamiliar,1.299971,Unfamiliar,do not send,F11,0,18:42:23.232
+2026-04-09T18:42:34.031890+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,UF39,1,18:42:34.031
+2026-04-09T18:42:44.964922+00:00,stranger,UNKNOWN,processed,Unfamiliar,1.520448,Unfamiliar,do not send,F6,0,18:42:44.964
+2026-04-09T18:42:56.124884+00:00,stranger,UNKNOWN,processed,Unfamiliar,0.604035,Unfamiliar,do not send,UF40,1,18:42:56.124
+2026-04-09T18:43:07.056333+00:00,stranger,UNKNOWN,rejected based on PTP amplitude,,,Unfamiliar,do not send,F8,0,18:43:07.056
+2026-04-09T18:43:18.291838+00:00,stranger,UNKNOWN,processed,Familiar,-1.906954,Familiar,do not send,F12,1,18:43:18.291
